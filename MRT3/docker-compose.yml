@@ -1,0 +1,10 @@
+version: '3.8'
+
+services:
+  react-app:
+    build: .
+    container_name: MRT3
+    ports:
+      - "8095:8095"
+    environment:
+      - NODE_ENV=production
