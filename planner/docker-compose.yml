@@ -3,7 +3,7 @@ services:
   planner-vacation:
     build:
       context: .
-      dockerfile: ./dashboard/Dockerfile
+      dockerfile: ./Dockerfile
     image: planner-vacation:latest
     ports:
       - "3000:3000"
