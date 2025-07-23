@@ -188,16 +188,27 @@ export default function Home() {
   const handleDeleteVacation = async (vacationId: string) => {
     if (confirm("Sei sicuro di voler eliminare questa vacanza? Tutti i dati associati saranno persi.")) {
       try {
-        // Trova la vacanza nel database usando il dbId
+        // Trova la vacanza nel database usando l'id della vacanza
         const vacation = vacations.find((v) => v.id === vacationId)
         if (vacation?.dbId) {
           await database.deleteVacation(vacation.dbId)
           await loadData() // Ricarica i dati
           setCurrentView("main")
           setCurrentVacation(null)
+        } else {
+          // Se non ha dbId, prova a eliminare direttamente
+          const allVacations = await database.getVacations()
+          const vacationToDelete = allVacations.find((v: any) => v.id === vacationId)
+          if (vacationToDelete?.dbId) {
+            await database.deleteVacation(vacationToDelete.dbId)
+            await loadData()
+            setCurrentView("main")
+            setCurrentVacation(null)
+          }
         }
       } catch (error) {
         console.error("Errore nell'eliminazione vacanza:", error)
+        alert("Errore nell'eliminazione della vacanza")
       }
     }
   }

@@ -1,5 +1,7 @@
 "use client"
 
+import { cloudSync } from "./cloud-sync"
+
 // Simulazione di un database interno condiviso
 export interface DatabaseTable {
   id: string
@@ -27,12 +29,14 @@ class InternalDatabase {
   private lockKey = "vacation_planner_db_lock"
   private listeners: Set<() => void> = new Set()
   private isInitialized = false
+  private cloudSyncUnsubscribe: (() => void) | null = null
 
   constructor() {
     // Inizializza solo nel browser
     if (isBrowser) {
       this.initializeDatabase()
       this.setupStorageListener()
+      this.setupCloudSync()
     }
   }
 
@@ -74,6 +78,18 @@ class InternalDatabase {
 
     // Listener per eventi personalizzati (stesso tab)
     window.addEventListener("database-update", debouncedNotify)
+  }
+
+  private setupCloudSync() {
+    if (!isBrowser) return
+
+    // Ascolta aggiornamenti dal cloud
+    this.cloudSyncUnsubscribe = cloudSync.onUpdate((data) => {
+      if (data.type === "database_update" && data.database) {
+        console.log(`📥 Ricevuto aggiornamento cloud da ${data.userId}`)
+        this.notifyListeners()
+      }
+    })
   }
 
   private async acquireLock(): Promise<boolean> {
@@ -118,10 +134,15 @@ class InternalDatabase {
     return JSON.parse(db)
   }
 
-  private saveDatabase(db: DatabaseSchema) {
+  private saveDatabase(db: DatabaseSchema, publishToCloud = true) {
     if (!isBrowser) return
 
     localStorage.setItem(this.dbKey, JSON.stringify(db))
+
+    // Pubblica al cloud per sincronizzazione cross-device
+    if (publishToCloud) {
+      cloudSync.publishUpdate(db, "system")
+    }
 
     // Notifica altri tab/finestre (debounced)
     setTimeout(() => {
@@ -282,7 +303,8 @@ class InternalDatabase {
         db.sync_log = db.sync_log.slice(-50)
       }
 
-      this.saveDatabase(db)
+      // Salva senza pubblicare al cloud per evitare loop
+      this.saveDatabase(db, false)
     } catch (error) {
       // Rimuovi il log dell'errore per evitare spam
     }
@@ -354,7 +376,8 @@ class InternalDatabase {
     return {
       ...db,
       exportedAt: new Date().toISOString(),
-      version: "3.0",
+      version: "4.0",
+      deviceId: cloudSync.getDeviceId(),
     }
   }
 
@@ -432,6 +455,21 @@ class InternalDatabase {
       this.saveDatabase(cleanDb)
     } finally {
       this.releaseLock()
+    }
+  }
+
+  // Metodi per il cloud sync
+  getCloudStatus() {
+    return cloudSync.getCloudStatus()
+  }
+
+  clearCloudData() {
+    cloudSync.clearCloudData()
+  }
+
+  destroy() {
+    if (this.cloudSyncUnsubscribe) {
+      this.cloudSyncUnsubscribe()
     }
   }
 }

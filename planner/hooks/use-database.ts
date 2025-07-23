@@ -1,65 +1,42 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
-import { db, type DatabaseTable } from "@/lib/database"
-import { toast } from "@/components/ui/use-toast"
+import { useState, useEffect, useCallback } from "react"
+import { db } from "@/lib/database"
 
-export function useDatabase(currentUser: string) {
-  const [isLoading, setIsLoading] = useState(false)
+export function useDatabase(userId: string) {
   const [lastSync, setLastSync] = useState<Date | null>(null)
-  const [syncLog, setSyncLog] = useState<DatabaseTable[]>([])
-  const isLoadingRef = useRef(false)
-  const [isMounted, setIsMounted] = useState(false)
+  const [syncLog, setSyncLog] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(false)
 
-  // Effetto per gestire il mounting
-  useEffect(() => {
-    setIsMounted(true)
-  }, [])
-
-  // Funzione per ricaricare i log di sincronizzazione (ottimizzata)
+  // Carica il log di sincronizzazione
   const loadSyncLog = useCallback(async () => {
-    if (isLoadingRef.current || !isMounted || !db) return
+    if (!db) return
 
     try {
-      isLoadingRef.current = true
-      const logs = await db.getSyncLog()
-      setSyncLog(logs.slice(0, 10)) // Ultimi 10 log
-
-      if (logs.length > 0) {
-        setLastSync(new Date(logs[0].createdAt))
+      const log = await db.getSyncLog()
+      setSyncLog(log)
+      if (log.length > 0) {
+        setLastSync(new Date(log[0].createdAt))
       }
     } catch (error) {
-      console.error("Errore nel caricamento dei log:", error)
-    } finally {
-      isLoadingRef.current = false
+      console.error("Errore nel caricamento sync log:", error)
     }
-  }, [isMounted])
+  }, [])
 
-  // Effetto per ascoltare i cambiamenti del database (ottimizzato)
+  // Setup listener per cambiamenti del database
   useEffect(() => {
-    if (!isMounted || !db) return
+    if (!db) return
 
-    let timeoutId: NodeJS.Timeout
+    const unsubscribe = db.onDatabaseChange(() => {
+      loadSyncLog()
+    })
 
-    const debouncedLoadSyncLog = () => {
-      clearTimeout(timeoutId)
-      timeoutId = setTimeout(() => {
-        loadSyncLog()
-      }, 500) // Debounce di 500ms
-    }
-
-    const unsubscribe = db.onDatabaseChange(debouncedLoadSyncLog)
-
-    // Carica i log iniziali
     loadSyncLog()
 
-    return () => {
-      clearTimeout(timeoutId)
-      unsubscribe()
-    }
-  }, [loadSyncLog, isMounted])
+    return unsubscribe
+  }, [loadSyncLog])
 
-  // Funzioni per gestire gli utenti
+  // Metodi per gli utenti
   const getUsers = useCallback(async () => {
     if (!db) return []
 
@@ -73,249 +50,210 @@ export function useDatabase(currentUser: string) {
   }, [])
 
   const createUser = useCallback(
-    async (userData: any) => {
+    async (user: any) => {
       if (!db) throw new Error("Database non disponibile")
-
-      try {
-        setIsLoading(true)
-        await db.insert("users", userData, currentUser)
-        toast({
-          title: "Utente creato",
-          description: `L'utente ${userData.username} è stato creato con successo.`,
-        })
-      } catch (error) {
-        console.error("Errore nella creazione utente:", error)
-        toast({
-          variant: "destructive",
-          title: "Errore",
-          description: "Impossibile creare l'utente.",
-        })
-      } finally {
-        setIsLoading(false)
-      }
+      return await db.insert("users", user, userId)
     },
-    [currentUser],
+    [userId],
   )
 
   const updateUser = useCallback(
-    async (userId: string, userData: any) => {
+    async (username: string, userData: any) => {
       if (!db) throw new Error("Database non disponibile")
 
-      try {
-        setIsLoading(true)
-        await db.update("users", userId, userData, currentUser)
-        toast({
-          title: "Utente aggiornato",
-          description: "Le modifiche sono state salvate con successo.",
-        })
-      } catch (error) {
-        console.error("Errore nell'aggiornamento utente:", error)
-        toast({
-          variant: "destructive",
-          title: "Errore",
-          description: "Impossibile aggiornare l'utente.",
-        })
-      } finally {
-        setIsLoading(false)
+      const users = await db.findAll("users")
+      const userRecord = users.find((record) => record.data.username === username)
+
+      if (userRecord) {
+        return await db.update("users", userRecord.id, userData, userId)
       }
+      return false
     },
-    [currentUser],
+    [userId],
   )
 
   const deleteUser = useCallback(
-    async (userId: string) => {
+    async (username: string) => {
       if (!db) throw new Error("Database non disponibile")
 
-      try {
-        setIsLoading(true)
-        await db.delete("users", userId, currentUser)
-        toast({
-          title: "Utente eliminato",
-          description: "L'utente è stato eliminato con successo.",
-        })
-      } catch (error) {
-        console.error("Errore nell'eliminazione utente:", error)
-        toast({
-          variant: "destructive",
-          title: "Errore",
-          description: "Impossibile eliminare l'utente.",
-        })
-      } finally {
-        setIsLoading(false)
+      const users = await db.findAll("users")
+      const userRecord = users.find((record) => record.data.username === username)
+
+      if (userRecord) {
+        return await db.delete("users", userRecord.id, userId)
       }
+      return false
     },
-    [currentUser],
+    [userId],
   )
 
-  // Funzioni per gestire le vacanze
+  // Metodi per le vacanze
   const getVacations = useCallback(async () => {
     if (!db) return []
 
     try {
       const vacations = await db.findAll("vacations")
-      return vacations.map((record) => ({ ...record.data, dbId: record.id }))
+      return vacations.map((record) => ({
+        ...record.data,
+        dbId: record.id,
+      }))
     } catch (error) {
       console.error("Errore nel caricamento vacanze:", error)
       return []
     }
   }, [])
 
+  const getVacationById = useCallback(async (vacationId: string) => {
+    if (!db) return null
+
+    try {
+      const vacations = await db.findAll("vacations")
+      const vacation = vacations.find((record) => record.data.id === vacationId)
+      return vacation ? { ...vacation.data, dbId: vacation.id } : null
+    } catch (error) {
+      console.error("Errore nel caricamento vacanza:", error)
+      return null
+    }
+  }, [])
+
   const createVacation = useCallback(
-    async (vacationData: any) => {
+    async (vacation: any) => {
       if (!db) throw new Error("Database non disponibile")
-
-      try {
-        setIsLoading(true)
-        await db.insert("vacations", vacationData, currentUser)
-        toast({
-          title: "Vacanza creata",
-          description: `La vacanza "${vacationData.title}" è stata creata con successo.`,
-        })
-      } catch (error) {
-        console.error("Errore nella creazione vacanza:", error)
-        toast({
-          variant: "destructive",
-          title: "Errore",
-          description: "Impossibile creare la vacanza.",
-        })
-      } finally {
-        setIsLoading(false)
-      }
+      return await db.insert("vacations", vacation, userId)
     },
-    [currentUser],
-  )
-
-  const updateVacation = useCallback(
-    async (vacationId: string, vacationData: any) => {
-      if (!db) throw new Error("Database non disponibile")
-
-      try {
-        setIsLoading(true)
-        await db.update("vacations", vacationId, vacationData, currentUser)
-        toast({
-          title: "Vacanza aggiornata",
-          description: "Le modifiche sono state salvate con successo.",
-        })
-      } catch (error) {
-        console.error("Errore nell'aggiornamento vacanza:", error)
-        toast({
-          variant: "destructive",
-          title: "Errore",
-          description: "Impossibile aggiornare la vacanza.",
-        })
-      } finally {
-        setIsLoading(false)
-      }
-    },
-    [currentUser],
+    [userId],
   )
 
   const deleteVacation = useCallback(
-    async (vacationId: string) => {
+    async (dbId: string) => {
       if (!db) throw new Error("Database non disponibile")
-
-      try {
-        setIsLoading(true)
-
-        // Elimina anche tutti i dati correlati
-        const days = await db.findWhere("vacation_days", (record) => record.data.vacationId === vacationId)
-        const expenses = await db.findWhere("expenses", (record) => record.data.vacationId === vacationId)
-        const notes = await db.findWhere("notes", (record) => record.data.vacationId === vacationId)
-
-        // Elimina i dati correlati
-        for (const day of days) {
-          await db.delete("vacation_days", day.id, currentUser)
-        }
-        for (const expense of expenses) {
-          await db.delete("expenses", expense.id, currentUser)
-        }
-        for (const note of notes) {
-          await db.delete("notes", note.id, currentUser)
-        }
-
-        // Elimina la vacanza
-        await db.delete("vacations", vacationId, currentUser)
-
-        toast({
-          title: "Vacanza eliminata",
-          description: "La vacanza e tutti i dati associati sono stati eliminati.",
-        })
-      } catch (error) {
-        console.error("Errore nell'eliminazione vacanza:", error)
-        toast({
-          variant: "destructive",
-          title: "Errore",
-          description: "Impossibile eliminare la vacanza.",
-        })
-      } finally {
-        setIsLoading(false)
-      }
+      return await db.delete("vacations", dbId, userId)
     },
-    [currentUser],
+    [userId],
   )
 
-  // Funzioni per gestire i giorni delle vacanze
+  // Metodi per i giorni delle vacanze
   const getVacationDays = useCallback(async (vacationId: string) => {
     if (!db) return []
 
     try {
       const days = await db.findWhere("vacation_days", (record) => record.data.vacationId === vacationId)
-      return days.map((record) => ({ ...record.data, dbId: record.id }))
+      return days.map((record) => record.data)
     } catch (error) {
-      console.error("Errore nel caricamento giorni vacanza:", error)
+      console.error("Errore nel caricamento giorni:", error)
       return []
     }
   }, [])
 
   const createVacationDay = useCallback(
-    async (dayData: any) => {
+    async (vacationId: string, day: any) => {
       if (!db) throw new Error("Database non disponibile")
-
-      try {
-        await db.insert("vacation_days", dayData, currentUser)
-      } catch (error) {
-        console.error("Errore nella creazione giorno:", error)
-        throw error
-      }
+      return await db.insert("vacation_days", { ...day, vacationId }, userId)
     },
-    [currentUser],
+    [userId],
   )
 
   const updateVacationDay = useCallback(
-    async (dayId: string, dayData: any) => {
+    async (vacationId: string, dayId: string, dayData: any) => {
       if (!db) throw new Error("Database non disponibile")
 
-      try {
-        await db.update("vacation_days", dayId, dayData, currentUser)
-      } catch (error) {
-        console.error("Errore nell'aggiornamento giorno:", error)
-        throw error
+      const days = await db.findWhere(
+        "vacation_days",
+        (record) => record.data.vacationId === vacationId && record.data.id === dayId,
+      )
+
+      if (days.length > 0) {
+        return await db.update("vacation_days", days[0].id, dayData, userId)
       }
+      return false
     },
-    [currentUser],
+    [userId],
   )
 
   const deleteVacationDay = useCallback(
-    async (dayId: string) => {
+    async (vacationId: string, dayId: string) => {
       if (!db) throw new Error("Database non disponibile")
 
-      try {
-        await db.delete("vacation_days", dayId, currentUser)
-      } catch (error) {
-        console.error("Errore nell'eliminazione giorno:", error)
-        throw error
+      const days = await db.findWhere(
+        "vacation_days",
+        (record) => record.data.vacationId === vacationId && record.data.id === dayId,
+      )
+
+      if (days.length > 0) {
+        return await db.delete("vacation_days", days[0].id, userId)
       }
+      return false
     },
-    [currentUser],
+    [userId],
   )
 
-  // Funzioni per gestire le spese
+  // Metodi per le attività
+  const addActivityToDay = useCallback(
+    async (vacationId: string, dayId: string, activity: any) => {
+      if (!db) throw new Error("Database non disponibile")
+
+      const days = await db.findWhere(
+        "vacation_days",
+        (record) => record.data.vacationId === vacationId && record.data.id === dayId,
+      )
+
+      if (days.length > 0) {
+        const day = days[0].data
+        const updatedActivities = [...(day.activities || []), activity]
+        return await db.update("vacation_days", days[0].id, { ...day, activities: updatedActivities }, userId)
+      }
+      return false
+    },
+    [userId],
+  )
+
+  const updateActivity = useCallback(
+    async (vacationId: string, dayId: string, activityId: string, activityData: any) => {
+      if (!db) throw new Error("Database non disponibile")
+
+      const days = await db.findWhere(
+        "vacation_days",
+        (record) => record.data.vacationId === vacationId && record.data.id === dayId,
+      )
+
+      if (days.length > 0) {
+        const day = days[0].data
+        const updatedActivities = day.activities.map((activity: any) =>
+          activity.id === activityId ? { ...activity, ...activityData } : activity,
+        )
+        return await db.update("vacation_days", days[0].id, { ...day, activities: updatedActivities }, userId)
+      }
+      return false
+    },
+    [userId],
+  )
+
+  const deleteActivity = useCallback(
+    async (vacationId: string, dayId: string, activityId: string) => {
+      if (!db) throw new Error("Database non disponibile")
+
+      const days = await db.findWhere(
+        "vacation_days",
+        (record) => record.data.vacationId === vacationId && record.data.id === dayId,
+      )
+
+      if (days.length > 0) {
+        const day = days[0].data
+        const updatedActivities = day.activities.filter((activity: any) => activity.id !== activityId)
+        return await db.update("vacation_days", days[0].id, { ...day, activities: updatedActivities }, userId)
+      }
+      return false
+    },
+    [userId],
+  )
+
+  // Metodi per le spese
   const getExpenses = useCallback(async (vacationId: string) => {
     if (!db) return []
 
     try {
       const expenses = await db.findWhere("expenses", (record) => record.data.vacationId === vacationId)
-      return expenses.map((record) => ({ ...record.data, dbId: record.id }))
+      return expenses.map((record) => record.data)
     } catch (error) {
       console.error("Errore nel caricamento spese:", error)
       return []
@@ -323,54 +261,54 @@ export function useDatabase(currentUser: string) {
   }, [])
 
   const createExpense = useCallback(
-    async (expenseData: any) => {
+    async (vacationId: string, expense: any) => {
       if (!db) throw new Error("Database non disponibile")
-
-      try {
-        await db.insert("expenses", expenseData, currentUser)
-      } catch (error) {
-        console.error("Errore nella creazione spesa:", error)
-        throw error
-      }
+      return await db.insert("expenses", { ...expense, vacationId }, userId)
     },
-    [currentUser],
+    [userId],
   )
 
   const updateExpense = useCallback(
-    async (expenseId: string, expenseData: any) => {
+    async (vacationId: string, expenseId: string, expenseData: any) => {
       if (!db) throw new Error("Database non disponibile")
 
-      try {
-        await db.update("expenses", expenseId, expenseData, currentUser)
-      } catch (error) {
-        console.error("Errore nell'aggiornamento spesa:", error)
-        throw error
+      const expenses = await db.findWhere(
+        "expenses",
+        (record) => record.data.vacationId === vacationId && record.data.id === expenseId,
+      )
+
+      if (expenses.length > 0) {
+        return await db.update("expenses", expenses[0].id, expenseData, userId)
       }
+      return false
     },
-    [currentUser],
+    [userId],
   )
 
   const deleteExpense = useCallback(
-    async (expenseId: string) => {
+    async (vacationId: string, expenseId: string) => {
       if (!db) throw new Error("Database non disponibile")
 
-      try {
-        await db.delete("expenses", expenseId, currentUser)
-      } catch (error) {
-        console.error("Errore nell'eliminazione spesa:", error)
-        throw error
+      const expenses = await db.findWhere(
+        "expenses",
+        (record) => record.data.vacationId === vacationId && record.data.id === expenseId,
+      )
+
+      if (expenses.length > 0) {
+        return await db.delete("expenses", expenses[0].id, userId)
       }
+      return false
     },
-    [currentUser],
+    [userId],
   )
 
-  // Funzioni per gestire le note
+  // Metodi per le note
   const getNotes = useCallback(async (vacationId: string) => {
     if (!db) return []
 
     try {
       const notes = await db.findWhere("notes", (record) => record.data.vacationId === vacationId)
-      return notes.map((record) => ({ ...record.data, dbId: record.id }))
+      return notes.map((record) => record.data)
     } catch (error) {
       console.error("Errore nel caricamento note:", error)
       return []
@@ -378,143 +316,108 @@ export function useDatabase(currentUser: string) {
   }, [])
 
   const createNote = useCallback(
-    async (noteData: any) => {
+    async (vacationId: string, note: any) => {
       if (!db) throw new Error("Database non disponibile")
-
-      try {
-        await db.insert("notes", noteData, currentUser)
-      } catch (error) {
-        console.error("Errore nella creazione nota:", error)
-        throw error
-      }
+      return await db.insert("notes", { ...note, vacationId }, userId)
     },
-    [currentUser],
+    [userId],
   )
 
   const updateNote = useCallback(
-    async (noteId: string, noteData: any) => {
+    async (vacationId: string, noteId: string, noteData: any) => {
       if (!db) throw new Error("Database non disponibile")
 
-      try {
-        await db.update("notes", noteId, noteData, currentUser)
-      } catch (error) {
-        console.error("Errore nell'aggiornamento nota:", error)
-        throw error
+      const notes = await db.findWhere(
+        "notes",
+        (record) => record.data.vacationId === vacationId && record.data.id === noteId,
+      )
+
+      if (notes.length > 0) {
+        return await db.update("notes", notes[0].id, noteData, userId)
       }
+      return false
     },
-    [currentUser],
+    [userId],
   )
 
   const deleteNote = useCallback(
-    async (noteId: string) => {
+    async (vacationId: string, noteId: string) => {
       if (!db) throw new Error("Database non disponibile")
 
-      try {
-        await db.delete("notes", noteId, currentUser)
-      } catch (error) {
-        console.error("Errore nell'eliminazione nota:", error)
-        throw error
+      const notes = await db.findWhere(
+        "notes",
+        (record) => record.data.vacationId === vacationId && record.data.id === noteId,
+      )
+
+      if (notes.length > 0) {
+        return await db.delete("notes", notes[0].id, userId)
       }
+      return false
     },
-    [currentUser],
+    [userId],
   )
 
-  // Funzioni di utilità
+  // Metodi per migrazione e gestione database
   const migrateFromLocalStorage = useCallback(async () => {
     if (!db) throw new Error("Database non disponibile")
-
-    try {
-      setIsLoading(true)
-      await db.migrateFromLocalStorage(currentUser)
-      toast({
-        title: "Migrazione completata",
-        description: "I dati sono stati migrati al nuovo sistema database.",
-      })
-    } catch (error) {
-      console.error("Errore nella migrazione:", error)
-      toast({
-        variant: "destructive",
-        title: "Errore migrazione",
-        description: "Si è verificato un errore durante la migrazione dei dati.",
-      })
-    } finally {
-      setIsLoading(false)
-    }
-  }, [currentUser])
+    return await db.migrateFromLocalStorage(userId)
+  }, [userId])
 
   const exportDatabase = useCallback(async () => {
     if (!db) throw new Error("Database non disponibile")
-
-    try {
-      return await db.exportDatabase()
-    } catch (error) {
-      console.error("Errore nell'esportazione:", error)
-      throw error
-    }
+    return await db.exportDatabase()
   }, [])
 
   const importDatabase = useCallback(
-    async (importedData: any) => {
+    async (data: any) => {
       if (!db) throw new Error("Database non disponibile")
-
-      try {
-        setIsLoading(true)
-        await db.importDatabase(importedData)
-        toast({
-          title: "Importazione completata",
-          description: "I dati sono stati importati con successo.",
-        })
-      } catch (error) {
-        console.error("Errore nell'importazione:", error)
-        toast({
-          variant: "destructive",
-          title: "Errore importazione",
-          description: "Si è verificato un errore durante l'importazione dei dati.",
-        })
-      } finally {
-        setIsLoading(false)
-      }
+      return await db.importDatabase(data, userId)
     },
-    [currentUser],
+    [userId],
   )
 
   return {
-    /* flags */
-    isLoading,
+    // Stato
     lastSync,
     syncLog,
+    isLoading,
 
-    /* users */
+    // Metodi utenti
     getUsers,
     createUser,
     updateUser,
     deleteUser,
 
-    /* vacations */
+    // Metodi vacanze
     getVacations,
+    getVacationById,
     createVacation,
-    updateVacation,
     deleteVacation,
 
-    /* vacation-days */
+    // Metodi giorni vacanze
     getVacationDays,
     createVacationDay,
     updateVacationDay,
     deleteVacationDay,
 
-    /* expenses */
+    // Metodi attività
+    addActivityToDay,
+    updateActivity,
+    deleteActivity,
+
+    // Metodi spese
     getExpenses,
     createExpense,
     updateExpense,
     deleteExpense,
 
-    /* notes */
+    // Metodi note
     getNotes,
     createNote,
     updateNote,
     deleteNote,
 
-    /* utils */
+    // Metodi database
     migrateFromLocalStorage,
     exportDatabase,
     importDatabase,

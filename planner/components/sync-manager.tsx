@@ -2,429 +2,245 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { ArrowLeft, QrCode, Download, Copy, Check, RefreshCw, Wifi, AlertCircle } from "lucide-react"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { toast } from "@/components/ui/use-toast"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { ArrowLeft, RefreshCw, Trash2, Download, Monitor, Wifi } from "lucide-react"
+import { toast } from "@/components/ui/use-toast"
+import { cloudSync } from "@/lib/cloud-sync"
 
 interface SyncManagerProps {
   currentUser: string
   onBack: () => void
+  database: any
 }
 
-export function SyncManager({ currentUser, onBack }: SyncManagerProps) {
-  const [syncCode, setSyncCode] = useState("")
-  const [generatedCode, setGeneratedCode] = useState("")
-  const [isGenerating, setIsGenerating] = useState(false)
+export function SyncManager({ currentUser, onBack, database }: SyncManagerProps) {
+  const [syncLog, setSyncLog] = useState<any[]>([])
+  const [cloudStatus, setCloudStatus] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [copied, setCopied] = useState(false)
-  const [syncHistory, setSyncHistory] = useState<any[]>([])
-  const [lastGlobalSync, setLastGlobalSync] = useState<Date | null>(null)
 
-  // Carica la cronologia di sincronizzazione
   useEffect(() => {
-    const history = JSON.parse(localStorage.getItem("global_vacation_sync_history") || "[]")
-    setSyncHistory(history.slice(0, 5)) // Mostra solo gli ultimi 5
-
-    const lastSync = localStorage.getItem("global_vacation_sync_timestamp")
-    if (lastSync) {
-      setLastGlobalSync(new Date(Number.parseInt(lastSync)))
-    }
+    loadSyncData()
+    const interval = setInterval(loadSyncData, 3000)
+    return () => clearInterval(interval)
   }, [])
 
-  const generateSyncCode = async () => {
-    setIsGenerating(true)
-
+  const loadSyncData = async () => {
     try {
-      // Raccogli tutti i dati
-      const allData = {
-        vacations: JSON.parse(localStorage.getItem("vacations") || "[]"),
-        users: JSON.parse(localStorage.getItem("users") || "[]"),
-        timestamp: new Date().toISOString(),
-        version: "2.0",
-        createdBy: currentUser,
-      }
-
-      // Aggiungi i dati delle vacanze
-      const vacations = allData.vacations
-      vacations.forEach((vacation: any) => {
-        const vacationId = vacation.id
-        const days = localStorage.getItem(`vacationDays_${vacationId}`)
-        const expenses = localStorage.getItem(`expenses_${vacationId}`)
-        const notes = localStorage.getItem(`vacationNotes_${vacationId}`)
-
-        if (days) allData[`vacationDays_${vacationId}`] = JSON.parse(days)
-        if (expenses) allData[`expenses_${vacationId}`] = JSON.parse(expenses)
-        if (notes) allData[`vacationNotes_${vacationId}`] = JSON.parse(notes)
-      })
-
-      // Comprimi e codifica i dati
-      const dataString = JSON.stringify(allData)
-      const compressed = btoa(encodeURIComponent(dataString))
-
-      // Genera un codice di 8 caratteri più sicuro
-      const code = Math.random().toString(36).substring(2, 10).toUpperCase()
-
-      // Salva con scadenza di 48 ore
-      const expirationTime = Date.now() + 48 * 60 * 60 * 1000
-      localStorage.setItem(`sync_${code}`, compressed)
-      localStorage.setItem(`sync_${code}_expires`, expirationTime.toString())
-      localStorage.setItem(`sync_${code}_creator`, currentUser)
-
-      setGeneratedCode(code)
-
-      toast({
-        title: "Codice generato con successo!",
-        description: "Il codice è valido per 48 ore. Usalo su altri dispositivi per sincronizzare i dati.",
-      })
+      const log = await database.getSyncLog()
+      setSyncLog(log.slice(0, 20))
+      setCloudStatus(cloudSync.getCloudStatus())
     } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Errore durante la generazione",
-        description: "Si è verificato un errore durante la creazione del codice.",
-      })
-    } finally {
-      setIsGenerating(false)
+      console.error("Errore nel caricamento dati sync:", error)
     }
   }
 
-  const syncWithCode = async () => {
-    if (!syncCode.trim()) {
-      toast({
-        variant: "destructive",
-        title: "Errore",
-        description: "Inserisci un codice di sincronizzazione valido.",
-      })
-      return
-    }
-
+  const handleForceSync = async () => {
     setIsLoading(true)
-
     try {
-      const code = syncCode.toUpperCase().trim()
-      const data = localStorage.getItem(`sync_${code}`)
-      const expires = localStorage.getItem(`sync_${code}_expires`)
-      const creator = localStorage.getItem(`sync_${code}_creator`)
-
-      if (!data || !expires) {
-        throw new Error("Codice non trovato o non valido")
-      }
-
-      if (Date.now() > Number.parseInt(expires)) {
-        // Rimuovi i dati scaduti
-        localStorage.removeItem(`sync_${code}`)
-        localStorage.removeItem(`sync_${code}_expires`)
-        localStorage.removeItem(`sync_${code}_creator`)
-        throw new Error("Codice scaduto")
-      }
-
-      // Decodifica i dati
-      const compressed = data
-      const dataString = decodeURIComponent(atob(compressed))
-      const syncData = JSON.parse(dataString)
-
-      // Mostra informazioni sul sync
-      const confirmMessage = `
-Stai per importare dati da: ${creator || "Utente sconosciuto"}
-Creati il: ${new Date(syncData.timestamp).toLocaleString()}
-Vacanze: ${syncData.vacations?.length || 0}
-Utenti: ${syncData.users?.length || 0}
-
-Questa operazione sovrascriverà tutti i dati attuali. Continuare?`
-
-      if (!confirm(confirmMessage)) {
-        setIsLoading(false)
-        return
-      }
-
-      // Importa i dati
-      localStorage.setItem("vacations", JSON.stringify(syncData.vacations))
-      localStorage.setItem("users", JSON.stringify(syncData.users))
-
-      // Importa i dati delle vacanze
-      syncData.vacations.forEach((vacation: any) => {
-        const vacationId = vacation.id
-        if (syncData[`vacationDays_${vacationId}`]) {
-          localStorage.setItem(`vacationDays_${vacationId}`, JSON.stringify(syncData[`vacationDays_${vacationId}`]))
-        }
-        if (syncData[`expenses_${vacationId}`]) {
-          localStorage.setItem(`expenses_${vacationId}`, JSON.stringify(syncData[`expenses_${vacationId}`]))
-        }
-        if (syncData[`vacationNotes_${vacationId}`]) {
-          localStorage.setItem(`vacationNotes_${vacationId}`, JSON.stringify(syncData[`vacationNotes_${vacationId}`]))
-        }
-      })
-
-      // Aggiorna il sistema di sincronizzazione globale
-      const globalSyncData = {
-        ...syncData,
-        timestamp: Date.now(),
-        lastUpdatedBy: currentUser,
-        syncId: `import-${Date.now()}`,
-      }
-
-      localStorage.setItem("global_vacation_sync", JSON.stringify(globalSyncData))
-      localStorage.setItem("global_vacation_sync_timestamp", globalSyncData.timestamp.toString())
+      // Forza un aggiornamento pubblicando lo stato corrente
+      const currentDb = await database.exportDatabase()
+      cloudSync.publishUpdate(currentDb, currentUser)
 
       toast({
-        title: "Sincronizzazione completata!",
-        description: `Dati importati con successo da ${creator}. La pagina verrà ricaricata.`,
+        title: "Sincronizzazione forzata",
+        description: "I dati sono stati pubblicati per la sincronizzazione.",
       })
 
-      // Ricarica la pagina dopo 2 secondi
       setTimeout(() => {
         window.location.reload()
-      }, 2000)
+      }, 1000)
     } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Errore di sincronizzazione",
-        description: error instanceof Error ? error.message : "Codice non valido o scaduto.",
-      })
-    }
-
-    setIsLoading(false)
-  }
-
-  const copyToClipboard = async () => {
-    try {
-      await navigator.clipboard.writeText(generatedCode)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-      toast({
-        title: "Copiato!",
-        description: "Il codice è stato copiato negli appunti.",
-      })
-    } catch (err) {
+      console.error("Errore nella sincronizzazione:", error)
       toast({
         variant: "destructive",
         title: "Errore",
-        description: "Impossibile copiare il codice.",
+        description: "Impossibile forzare la sincronizzazione.",
       })
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  const forceGlobalSync = () => {
-    // Trigger evento di sincronizzazione forzata
-    window.dispatchEvent(new CustomEvent("force-vacation-sync"))
-    toast({
-      title: "Sincronizzazione forzata",
-      description: "Controllo aggiornamenti in corso...",
-    })
+  const handleClearCloudData = () => {
+    if (confirm("Sei sicuro di voler cancellare tutti i dati cloud? Questa operazione non può essere annullata.")) {
+      try {
+        cloudSync.clearCloudData()
+        toast({
+          title: "Dati cloud cancellati",
+          description: "Tutti i dati di sincronizzazione cloud sono stati rimossi.",
+        })
+        loadSyncData()
+      } catch (error) {
+        console.error("Errore nella cancellazione:", error)
+        toast({
+          variant: "destructive",
+          title: "Errore",
+          description: "Impossibile cancellare i dati cloud.",
+        })
+      }
+    }
+  }
+
+  const handleExportSyncData = async () => {
+    try {
+      const exportData = {
+        syncLog,
+        cloudStatus,
+        exportedAt: new Date().toISOString(),
+        deviceId: cloudStatus?.deviceId,
+      }
+
+      const dataStr = JSON.stringify(exportData, null, 2)
+      const dataUri = "data:application/json;charset=utf-8," + encodeURIComponent(dataStr)
+
+      const exportFileDefaultName = `sync-data-export-${new Date().toISOString().slice(0, 10)}.json`
+
+      const linkElement = document.createElement("a")
+      linkElement.setAttribute("href", dataUri)
+      linkElement.setAttribute("download", exportFileDefaultName)
+      linkElement.click()
+
+      toast({
+        title: "Esportazione completata",
+        description: "I dati di sincronizzazione sono stati esportati.",
+      })
+    } catch (error) {
+      console.error("Errore nell'esportazione:", error)
+      toast({
+        variant: "destructive",
+        title: "Errore",
+        description: "Impossibile esportare i dati di sincronizzazione.",
+      })
+    }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-blue-50">
-      <div className="w-full max-w-4xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6">
-        <div className="flex items-center gap-2 sm:gap-4 mb-6">
-          <Button variant="outline" onClick={onBack} size="sm">
-            <ArrowLeft className="w-4 h-4 mr-1 sm:mr-2" />
-            <span className="hidden sm:inline">Torna alla </span>Dashboard
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-blue-50 p-4">
+      <div className="max-w-6xl mx-auto">
+        <div className="flex items-center gap-4 mb-6">
+          <Button variant="ghost" onClick={onBack} className="flex items-center gap-2">
+            <ArrowLeft className="w-4 h-4" />
+            Torna alla Dashboard
           </Button>
-          <h1 className="text-lg sm:text-xl lg:text-2xl font-bold">Sincronizzazione Dispositivi</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Gestione Sincronizzazione</h1>
         </div>
 
-        <div className="space-y-4 sm:space-y-6">
-          {/* Status Sincronizzazione */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          {/* Stato Cloud */}
           <Card>
-            <CardHeader className="p-3 sm:p-4 lg:p-6">
-              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                <Wifi className="w-4 h-4 sm:w-5 sm:h-5" />
-                Status Sincronizzazione
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Wifi className="w-5 h-5" />
+                Stato Sincronizzazione Cloud
               </CardTitle>
+              <CardDescription>Informazioni sulla sincronizzazione tra dispositivi</CardDescription>
             </CardHeader>
-            <CardContent className="p-3 sm:p-4 lg:p-6 pt-0">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <Badge className="bg-green-500">Attivo</Badge>
-                    <span className="text-sm text-gray-600">Sistema di sincronizzazione automatica</span>
+            <CardContent className="space-y-4">
+              {cloudStatus && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">ID Dispositivo:</span>
+                    <Badge variant="outline" className="font-mono">
+                      {cloudStatus.deviceId.slice(-12)}
+                    </Badge>
                   </div>
-                  {lastGlobalSync && (
-                    <p className="text-xs text-gray-500">Ultimo aggiornamento: {lastGlobalSync.toLocaleString()}</p>
-                  )}
-                </div>
-                <Button onClick={forceGlobalSync} variant="outline" size="sm">
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Forza Sync
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
 
-          {/* Genera Codice */}
-          <Card>
-            <CardHeader className="p-3 sm:p-4 lg:p-6">
-              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                <QrCode className="w-4 h-4 sm:w-5 sm:h-5" />
-                Genera Codice di Sincronizzazione
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-3 sm:p-4 lg:p-6 pt-0 space-y-4">
-              <p className="text-sm text-gray-600 break-anywhere">
-                Genera un codice temporaneo per sincronizzare i tuoi dati con altri dispositivi. Il codice è valido per
-                48 ore e include tutti i dati delle vacanze.
-              </p>
-
-              <Button onClick={generateSyncCode} disabled={isGenerating} className="w-full">
-                {isGenerating ? (
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Generazione...
-                  </div>
-                ) : (
-                  <>
-                    <QrCode className="w-4 h-4 mr-2" />
-                    Genera Codice
-                  </>
-                )}
-              </Button>
-
-              {generatedCode && (
-                <Alert className="border-green-200 bg-green-50">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription className="space-y-3">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <p className="font-semibold text-green-800">Codice generato:</p>
-                        <p className="text-xl sm:text-2xl font-mono font-bold text-green-900 break-all">
-                          {generatedCode}
-                        </p>
-                      </div>
-                      <Button variant="outline" size="sm" onClick={copyToClipboard} className="bg-white flex-shrink-0">
-                        {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                      </Button>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Dispositivi Connessi:</span>
+                    <div className="flex items-center gap-2">
+                      <Monitor className="w-4 h-4" />
+                      <span className="font-semibold">{cloudStatus.devices.length}</span>
                     </div>
-                    <p className="text-sm text-green-700 break-anywhere">
-                      Usa questo codice su altri dispositivi per sincronizzare i dati. Scade tra 48 ore.
-                    </p>
-                  </AlertDescription>
-                </Alert>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Aggiornamenti Cloud:</span>
+                    <span className="font-semibold">{cloudStatus.cloudUpdates}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Ultimo Aggiornamento:</span>
+                    <span className="text-sm text-gray-600">
+                      {cloudStatus.lastUpdate ? cloudStatus.lastUpdate.toLocaleString("it-IT") : "Nessuno"}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Versione Locale:</span>
+                    <span className="text-sm text-gray-600">
+                      {new Date(cloudStatus.localVersion).toLocaleString("it-IT")}
+                    </span>
+                  </div>
+                </>
               )}
             </CardContent>
           </Card>
 
-          {/* Sincronizza con Codice */}
+          {/* Azioni */}
           <Card>
-            <CardHeader className="p-3 sm:p-4 lg:p-6">
-              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                <Download className="w-4 h-4 sm:w-5 sm:h-5" />
-                Sincronizza con Codice
-              </CardTitle>
+            <CardHeader>
+              <CardTitle>Azioni di Sincronizzazione</CardTitle>
+              <CardDescription>Gestisci la sincronizzazione dei dati</CardDescription>
             </CardHeader>
-            <CardContent className="p-3 sm:p-4 lg:p-6 pt-0 space-y-4">
-              <p className="text-sm text-gray-600 break-anywhere">
-                Inserisci un codice di sincronizzazione per importare i dati da un altro dispositivo.
-              </p>
-
-              <div>
-                <Label htmlFor="syncCode" className="text-sm sm:text-base">
-                  Codice di Sincronizzazione
-                </Label>
-                <Input
-                  id="syncCode"
-                  value={syncCode}
-                  onChange={(e) => setSyncCode(e.target.value.toUpperCase())}
-                  placeholder="Inserisci il codice (es: ABC12345)"
-                  className="font-mono text-center text-base sm:text-lg mt-1"
-                  maxLength={8}
-                />
-              </div>
-
-              <Alert className="border-yellow-200 bg-yellow-50">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription className="text-yellow-800 break-anywhere">
-                  <strong>Attenzione:</strong> Questa operazione sovrascriverà tutti i dati attuali su questo
-                  dispositivo con quelli del codice inserito.
-                </AlertDescription>
-              </Alert>
+            <CardContent className="space-y-3">
+              <Button onClick={handleForceSync} disabled={isLoading} className="w-full flex items-center gap-2">
+                <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
+                Forza Sincronizzazione
+              </Button>
 
               <Button
-                onClick={syncWithCode}
-                disabled={isLoading || !syncCode.trim()}
-                className="w-full bg-transparent"
                 variant="outline"
+                onClick={handleExportSyncData}
+                className="w-full flex items-center gap-2 bg-transparent"
               >
-                {isLoading ? (
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-gray-600 border-t-transparent rounded-full animate-spin"></div>
-                    Sincronizzazione...
-                  </div>
-                ) : (
-                  <>
-                    <Download className="w-4 h-4 mr-2" />
-                    Sincronizza Dati
-                  </>
-                )}
+                <Download className="w-4 h-4" />
+                Esporta Dati Sync
+              </Button>
+
+              <Button variant="destructive" onClick={handleClearCloudData} className="w-full flex items-center gap-2">
+                <Trash2 className="w-4 h-4" />
+                Cancella Dati Cloud
               </Button>
             </CardContent>
           </Card>
-
-          {/* Cronologia Sincronizzazioni */}
-          {syncHistory.length > 0 && (
-            <Card>
-              <CardHeader className="p-3 sm:p-4 lg:p-6">
-                <CardTitle className="text-base sm:text-lg">Cronologia Sincronizzazioni</CardTitle>
-              </CardHeader>
-              <CardContent className="p-3 sm:p-4 lg:p-6 pt-0">
-                <div className="space-y-2">
-                  {syncHistory.map((sync, index) => (
-                    <div
-                      key={index}
-                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-2 sm:p-3 bg-gray-50 rounded-lg"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium break-anywhere">Aggiornamento da: {sync.lastUpdatedBy}</p>
-                        <p className="text-xs text-gray-500">{new Date(sync.timestamp).toLocaleString()}</p>
-                      </div>
-                      <Badge variant="outline" className="text-xs flex-shrink-0">
-                        {sync.vacations?.length || 0} vacanze
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Istruzioni */}
-          <Card>
-            <CardHeader className="p-3 sm:p-4 lg:p-6">
-              <CardTitle className="text-base sm:text-lg">Come Funziona la Sincronizzazione</CardTitle>
-            </CardHeader>
-            <CardContent className="p-3 sm:p-4 lg:p-6 pt-0">
-              <div className="space-y-3 sm:space-y-4">
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-sm sm:text-base">🔄 Sincronizzazione Automatica:</h4>
-                  <p className="text-sm text-gray-600 break-anywhere">
-                    Il sistema controlla automaticamente ogni 3 secondi se ci sono aggiornamenti da altri utenti sullo
-                    stesso dispositivo.
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-sm sm:text-base">📱 Tra Dispositivi Diversi:</h4>
-                  <p className="text-sm text-gray-600 break-anywhere">
-                    1. Sul dispositivo principale: genera un codice di sincronizzazione
-                    <br />
-                    2. Su altri dispositivi: inserisci il codice per importare tutti i dati
-                    <br />
-                    3. I codici scadono dopo 48 ore per sicurezza
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-sm sm:text-base">⚠️ Importante:</h4>
-                  <p className="text-sm text-gray-600 break-anywhere">
-                    La sincronizzazione tra dispositivi diversi richiede l'uso manuale dei codici. Tutti i dati verranno
-                    sincronizzati: vacanze, utenti, attività, spese e note.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
         </div>
+
+        {/* Log di Sincronizzazione */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Log di Sincronizzazione</CardTitle>
+            <CardDescription>Cronologia delle operazioni di sincronizzazione (ultimi 20 eventi)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {syncLog.length === 0 ? (
+                <p className="text-gray-500 text-center py-4">Nessun evento di sincronizzazione</p>
+              ) : (
+                syncLog.map((log) => (
+                  <div key={log.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <Badge
+                        variant={
+                          log.data.operation === "INSERT"
+                            ? "default"
+                            : log.data.operation === "UPDATE"
+                              ? "secondary"
+                              : "destructive"
+                        }
+                      >
+                        {log.data.operation}
+                      </Badge>
+                      <span className="font-medium">{log.data.table}</span>
+                      <span className="text-sm text-gray-600">da {log.createdBy}</span>
+                    </div>
+                    <span className="text-sm text-gray-500">{new Date(log.createdAt).toLocaleString("it-IT")}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   )
