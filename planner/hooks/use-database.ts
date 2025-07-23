@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { db, type DatabaseTable } from "@/lib/database"
 import { toast } from "@/components/ui/use-toast"
 
@@ -8,10 +8,14 @@ export function useDatabase(currentUser: string) {
   const [isLoading, setIsLoading] = useState(false)
   const [lastSync, setLastSync] = useState<Date | null>(null)
   const [syncLog, setSyncLog] = useState<DatabaseTable[]>([])
+  const isLoadingRef = useRef(false)
 
-  // Funzione per ricaricare i log di sincronizzazione
+  // Funzione per ricaricare i log di sincronizzazione (ottimizzata)
   const loadSyncLog = useCallback(async () => {
+    if (isLoadingRef.current) return
+
     try {
+      isLoadingRef.current = true
       const logs = await db.getSyncLog()
       setSyncLog(logs.slice(0, 10)) // Ultimi 10 log
 
@@ -20,20 +24,31 @@ export function useDatabase(currentUser: string) {
       }
     } catch (error) {
       console.error("Errore nel caricamento dei log:", error)
+    } finally {
+      isLoadingRef.current = false
     }
   }, [])
 
-  // Effetto per ascoltare i cambiamenti del database
+  // Effetto per ascoltare i cambiamenti del database (ottimizzato)
   useEffect(() => {
-    const unsubscribe = db.onDatabaseChange(() => {
-      loadSyncLog()
-      console.log("📡 Database aggiornato, ricaricando i log...")
-    })
+    let timeoutId: NodeJS.Timeout
+
+    const debouncedLoadSyncLog = () => {
+      clearTimeout(timeoutId)
+      timeoutId = setTimeout(() => {
+        loadSyncLog()
+      }, 500) // Debounce di 500ms
+    }
+
+    const unsubscribe = db.onDatabaseChange(debouncedLoadSyncLog)
 
     // Carica i log iniziali
     loadSyncLog()
 
-    return unsubscribe
+    return () => {
+      clearTimeout(timeoutId)
+      unsubscribe()
+    }
   }, [loadSyncLog])
 
   // Funzioni per gestire gli utenti

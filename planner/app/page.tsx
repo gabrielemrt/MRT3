@@ -58,16 +58,17 @@ export default function Home() {
   const [isAdmin, setIsAdmin] = useState(false)
   const [isInitialized, setIsInitialized] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const isLoadingRef = useRef(false)
 
   // Hook del database
   const database = useDatabase(currentUser || "system")
 
-  // Funzione per caricare i dati dal database
+  // Funzione per caricare i dati dal database (ottimizzata)
   const loadData = useCallback(async () => {
-    if (!currentUser) return
+    if (!currentUser || isLoadingRef.current) return
 
     try {
-      console.log("📊 Caricamento dati dal database...")
+      isLoadingRef.current = true
 
       // Carica vacanze
       const dbVacations = await database.getVacations()
@@ -77,55 +78,66 @@ export default function Home() {
       const users = await database.getUsers()
       const user = users.find((u: any) => u.username === currentUser)
       setIsAdmin(user?.role === "admin")
-
-      console.log(`✅ Caricati ${dbVacations.length} vacanze dal database`)
     } catch (error) {
-      console.error("❌ Errore nel caricamento dati:", error)
+      console.error("Errore nel caricamento dati:", error)
+    } finally {
+      isLoadingRef.current = false
     }
   }, [currentUser, database])
 
-  // Effetto per inizializzare l'app
+  // Effetto per inizializzare l'app (ottimizzato)
   useEffect(() => {
+    let isMounted = true
+
     const initializeApp = async () => {
-      console.log("🚀 Inizializzazione app...")
+      if (!isMounted) return
 
-      // Controlla se ci sono dati da migrare
-      const hasOldData = localStorage.getItem("vacations") || localStorage.getItem("users")
+      try {
+        // Controlla se ci sono dati da migrare
+        const hasOldData = localStorage.getItem("vacations") || localStorage.getItem("users")
 
-      if (hasOldData) {
-        console.log("🔄 Rilevati dati legacy, avvio migrazione...")
-        try {
-          await database.migrateFromLocalStorage()
-          console.log("✅ Migrazione completata")
-        } catch (error) {
-          console.error("❌ Errore durante la migrazione:", error)
+        if (hasOldData) {
+          try {
+            await database.migrateFromLocalStorage()
+          } catch (error) {
+            console.error("Errore durante la migrazione:", error)
+          }
+        }
+
+        // Inizializza utenti di default se il database è vuoto
+        const users = await database.getUsers()
+        if (users.length === 0) {
+          const { users: defaultUsers } = await import("@/data/users")
+          for (const user of defaultUsers) {
+            await database.createUser(user)
+          }
+        }
+
+        // Controlla se c'è un utente salvato
+        const savedUser = localStorage.getItem("currentUser")
+        if (savedUser && isMounted) {
+          setCurrentUser(savedUser)
+        }
+
+        if (isMounted) {
+          setIsInitialized(true)
+        }
+      } catch (error) {
+        console.error("Errore nell'inizializzazione:", error)
+        if (isMounted) {
+          setIsInitialized(true)
         }
       }
-
-      // Inizializza utenti di default se il database è vuoto
-      const users = await database.getUsers()
-      if (users.length === 0) {
-        console.log("👥 Inizializzazione utenti di default...")
-        const { users: defaultUsers } = await import("@/data/users")
-        for (const user of defaultUsers) {
-          await database.createUser(user)
-        }
-      }
-
-      // Controlla se c'è un utente salvato
-      const savedUser = localStorage.getItem("currentUser")
-      if (savedUser) {
-        setCurrentUser(savedUser)
-      }
-
-      setIsInitialized(true)
-      console.log("✅ App inizializzata")
     }
 
     initializeApp()
+
+    return () => {
+      isMounted = false
+    }
   }, [database])
 
-  // Effetto per caricare i dati quando l'utente cambia
+  // Effetto per caricare i dati quando l'utente cambia (ottimizzato)
   useEffect(() => {
     if (currentUser && isInitialized) {
       loadData()
@@ -140,8 +152,6 @@ export default function Home() {
     const users = await database.getUsers()
     const user = users.find((u: any) => u.username === username)
     setIsAdmin(user?.role === "admin")
-
-    console.log(`👤 Utente ${username} ha effettuato l'accesso`)
   }
 
   const handleLogout = () => {
@@ -150,7 +160,6 @@ export default function Home() {
     setCurrentView("main")
     setCurrentVacation(null)
     setVacations([])
-    console.log("👋 Logout effettuato")
   }
 
   const handleCreateVacation = async (newVacation: Vacation) => {

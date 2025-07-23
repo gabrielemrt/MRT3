@@ -23,6 +23,7 @@ class InternalDatabase {
   private dbKey = "vacation_planner_db"
   private lockKey = "vacation_planner_db_lock"
   private listeners: Set<() => void> = new Set()
+  private isInitialized = false
 
   constructor() {
     this.initializeDatabase()
@@ -30,6 +31,8 @@ class InternalDatabase {
   }
 
   private initializeDatabase() {
+    if (this.isInitialized) return
+
     const existingDb = localStorage.getItem(this.dbKey)
     if (!existingDb) {
       const initialDb: DatabaseSchema = {
@@ -41,34 +44,41 @@ class InternalDatabase {
         sync_log: [],
       }
       this.saveDatabase(initialDb)
-      console.log("🗄️ Database interno inizializzato")
     }
+    this.isInitialized = true
   }
 
   private setupStorageListener() {
+    let debounceTimeout: NodeJS.Timeout
+
+    const debouncedNotify = () => {
+      clearTimeout(debounceTimeout)
+      debounceTimeout = setTimeout(() => {
+        this.notifyListeners()
+      }, 100)
+    }
+
     window.addEventListener("storage", (e) => {
       if (e.key === this.dbKey) {
-        this.notifyListeners()
+        debouncedNotify()
       }
     })
 
     // Listener per eventi personalizzati (stesso tab)
-    window.addEventListener("database-update", () => {
-      this.notifyListeners()
-    })
+    window.addEventListener("database-update", debouncedNotify)
   }
 
   private async acquireLock(): Promise<boolean> {
-    const lockTimeout = 5000 // 5 secondi
+    const lockTimeout = 2000 // Ridotto a 2 secondi
     const lockStart = Date.now()
 
     while (Date.now() - lockStart < lockTimeout) {
       const existingLock = localStorage.getItem(this.lockKey)
-      if (!existingLock || Date.now() - Number.parseInt(existingLock) > 10000) {
+      if (!existingLock || Date.now() - Number.parseInt(existingLock) > 5000) {
         localStorage.setItem(this.lockKey, Date.now().toString())
         return true
       }
-      await new Promise((resolve) => setTimeout(resolve, 50))
+      await new Promise((resolve) => setTimeout(resolve, 25))
     }
     return false
   }
@@ -88,15 +98,20 @@ class InternalDatabase {
   private saveDatabase(db: DatabaseSchema) {
     localStorage.setItem(this.dbKey, JSON.stringify(db))
 
-    // Notifica altri tab/finestre
-    window.dispatchEvent(new CustomEvent("database-update"))
-
-    // Log dell'operazione
-    console.log(`💾 Database aggiornato alle ${new Date().toLocaleTimeString()}`)
+    // Notifica altri tab/finestre (debounced)
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent("database-update"))
+    }, 10)
   }
 
   private notifyListeners() {
-    this.listeners.forEach((listener) => listener())
+    this.listeners.forEach((listener) => {
+      try {
+        listener()
+      } catch (error) {
+        console.error("Errore nel listener del database:", error)
+      }
+    })
   }
 
   // Metodi pubblici per gestire i dati
@@ -122,8 +137,8 @@ class InternalDatabase {
       db[table].push(record)
       this.saveDatabase(db)
 
-      // Log della sync
-      await this.logSync("INSERT", table, id, userId)
+      // Log della sync (ridotto)
+      this.logSync("INSERT", table, id, userId)
 
       return id
     } finally {
@@ -153,8 +168,8 @@ class InternalDatabase {
 
       this.saveDatabase(db)
 
-      // Log della sync
-      await this.logSync("UPDATE", table, id, userId)
+      // Log della sync (ridotto)
+      this.logSync("UPDATE", table, id, userId)
 
       return true
     } finally {
@@ -175,8 +190,8 @@ class InternalDatabase {
       if (db[table].length < initialLength) {
         this.saveDatabase(db)
 
-        // Log della sync
-        await this.logSync("DELETE", table, id, userId)
+        // Log della sync (ridotto)
+        this.logSync("DELETE", table, id, userId)
 
         return true
       }
@@ -204,7 +219,7 @@ class InternalDatabase {
     return db[table].filter(predicate)
   }
 
-  private async logSync(operation: string, table: string, recordId: string, userId: string) {
+  private logSync(operation: string, table: string, recordId: string, userId: string) {
     try {
       const db = this.getDatabase()
       const logEntry: DatabaseTable = {
@@ -223,21 +238,19 @@ class InternalDatabase {
 
       db.sync_log.push(logEntry)
 
-      // Mantieni solo gli ultimi 100 log
-      if (db.sync_log.length > 100) {
-        db.sync_log = db.sync_log.slice(-100)
+      // Mantieni solo gli ultimi 50 log (ridotto)
+      if (db.sync_log.length > 50) {
+        db.sync_log = db.sync_log.slice(-50)
       }
 
       this.saveDatabase(db)
     } catch (error) {
-      console.error("Errore nel logging della sync:", error)
+      // Rimuovi il log dell'errore per evitare spam
     }
   }
 
   // Metodi per la migrazione dai dati esistenti
   async migrateFromLocalStorage(userId: string): Promise<void> {
-    console.log("🔄 Inizio migrazione dati da localStorage...")
-
     try {
       // Migra utenti
       const existingUsers = localStorage.getItem("users")
@@ -254,7 +267,7 @@ class InternalDatabase {
       if (existingVacations) {
         const vacations = JSON.parse(existingVacations)
         for (const vacation of vacations) {
-          const vacationId = await this.insert("vacations", vacation, userId)
+          await this.insert("vacations", vacation, userId)
 
           // Migra dati correlati alla vacanza
           const days = localStorage.getItem(`vacationDays_${vacation.id}`)
@@ -278,7 +291,7 @@ class InternalDatabase {
           const notes = localStorage.getItem(`vacationNotes_${vacation.id}`)
           if (notes) {
             const notesData = JSON.parse(notes)
-            for (const note of notes) {
+            for (const note of notesData) {
               await this.insert("notes", { ...note, vacationId: vacation.id }, userId)
             }
             localStorage.removeItem(`vacationNotes_${vacation.id}`)
@@ -286,10 +299,8 @@ class InternalDatabase {
         }
         localStorage.removeItem("vacations")
       }
-
-      console.log("✅ Migrazione completata con successo")
     } catch (error) {
-      console.error("❌ Errore durante la migrazione:", error)
+      console.error("Errore durante la migrazione:", error)
       throw error
     }
   }
@@ -330,9 +341,7 @@ class InternalDatabase {
       this.saveDatabase(cleanDb)
 
       // Log dell'importazione
-      await this.logSync("IMPORT", "database", "full", userId)
-
-      console.log("✅ Database importato con successo")
+      this.logSync("IMPORT", "database", "full", userId)
     } finally {
       this.releaseLock()
     }
@@ -365,7 +374,6 @@ class InternalDatabase {
         sync_log: [],
       }
       this.saveDatabase(cleanDb)
-      console.log("🗑️ Database pulito")
     } finally {
       this.releaseLock()
     }
