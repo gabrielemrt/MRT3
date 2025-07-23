@@ -11,9 +11,10 @@ import { ExpenseManager } from "@/components/expense-manager"
 import { NotesManager } from "@/components/notes-manager"
 import { VacationCreator } from "@/components/vacation-creator"
 import { UserManager } from "@/components/user-manager"
+import { UserProfile } from "@/components/user-profile"
+import { SyncManager } from "@/components/sync-manager"
 import { toast } from "@/components/ui/use-toast"
 import { Toaster } from "@/components/ui/toaster"
-import { UserProfile } from "@/components/user-profile"
 
 export type View =
   | "main"
@@ -24,6 +25,7 @@ export type View =
   | "create-vacation"
   | "manage-users"
   | "user-profile"
+  | "sync-manager"
 
 export interface Vacation {
   id: string
@@ -74,7 +76,27 @@ export default function Home() {
       setVacations([exampleVacation])
       localStorage.setItem("vacations", JSON.stringify([exampleVacation]))
     }
+
+    // Pulizia automatica dei codici di sincronizzazione scaduti
+    cleanupExpiredSyncCodes()
   }, [])
+
+  // Funzione per pulire i codici di sincronizzazione scaduti
+  const cleanupExpiredSyncCodes = () => {
+    const keys = Object.keys(localStorage)
+    const now = Date.now()
+
+    keys.forEach((key) => {
+      if (key.startsWith("sync_") && key.endsWith("_expires")) {
+        const expires = Number.parseInt(localStorage.getItem(key) || "0")
+        if (now > expires) {
+          const codeKey = key.replace("_expires", "")
+          localStorage.removeItem(key)
+          localStorage.removeItem(codeKey)
+        }
+      }
+    })
+  }
 
   // Funzione per inizializzare gli utenti se non esistono già
   const initializeUsers = async () => {
@@ -268,6 +290,7 @@ export default function Home() {
           onImportData={handleImportData}
           onLogout={handleLogout}
           onUserProfile={() => setCurrentView("user-profile")}
+          onSyncManager={() => setCurrentView("sync-manager")}
         />
       )}
 
@@ -319,6 +342,10 @@ export default function Home() {
 
       {currentView === "user-profile" && (
         <UserProfile currentUser={currentUser} onBack={() => setCurrentView("main")} />
+      )}
+
+      {currentView === "sync-manager" && (
+        <SyncManager currentUser={currentUser} onBack={() => setCurrentView("main")} />
       )}
 
       {/* Input file nascosto per l'importazione */}
