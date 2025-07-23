@@ -1,11 +1,12 @@
-version: '3.9'
-
+version: '3.8'
 services:
-  vacation-dashboard:
-    build: .
-    container_name: vacation-dashboard
+  planner-vacation:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: planner-vacation:latest
     ports:
       - "3000:3000"
     environment:
-      - NODE_ENV=production
+      NODE_ENV: production
     restart: unless-stopped
