@@ -99,10 +99,23 @@ export function VacationDashboard({
         <div className="mb-6 sm:mb-8">
           <Card>
             <CardHeader className="p-3 sm:p-4 lg:p-6">
-              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                <Users className="w-4 h-4 sm:w-5 sm:h-5" />
-                Partecipanti ({vacation.participants?.length || 0})
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                  <Users className="w-4 h-4 sm:w-5 sm:h-5" />
+                  Partecipanti ({vacation.participants?.length || 0})
+                </CardTitle>
+                {permissions.canManageParticipants && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onNavigate("manage-participants")}
+                    className="bg-transparent"
+                  >
+                    <Users className="w-4 h-4 mr-2" />
+                    Gestisci
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="p-3 sm:p-4 lg:p-6 pt-0">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">

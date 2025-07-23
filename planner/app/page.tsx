@@ -15,7 +15,8 @@ import { UserProfile } from "@/components/user-profile"
 import { SyncManager } from "@/components/sync-manager"
 import { toast } from "@/components/ui/use-toast"
 import { Toaster } from "@/components/ui/toaster"
-import { useSync } from "@/hooks/use-sync"
+import { useDatabase } from "@/hooks/use-database"
+import { VacationParticipantsManager } from "@/components/vacation-participants-manager"
 
 export type View =
   | "main"
@@ -27,6 +28,7 @@ export type View =
   | "manage-users"
   | "user-profile"
   | "sync-manager"
+  | "manage-participants"
 
 export interface Vacation {
   id: string
@@ -39,6 +41,7 @@ export interface Vacation {
   createdBy: string
   createdAt: string
   participants: VacationParticipant[]
+  dbId?: string
 }
 
 export interface VacationParticipant {
@@ -53,134 +56,92 @@ export default function Home() {
   const [vacations, setVacations] = useState<Vacation[]>([])
   const [currentVacation, setCurrentVacation] = useState<Vacation | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
-  const [lastSync, setLastSync] = useState<Date | null>(null)
-  const [lastUpdatedBy, setLastUpdatedBy] = useState<string>("")
+  const [isInitialized, setIsInitialized] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Callback per gestire gli aggiornamenti dei dati dalla sincronizzazione
-  const handleDataUpdate = useCallback(
-    (syncData: any) => {
-      console.log(
-        `📥 Ricevuto aggiornamento da ${syncData.lastUpdatedBy} alle ${new Date(syncData.timestamp).toLocaleTimeString()}`,
-      )
+  // Hook del database
+  const database = useDatabase(currentUser || "system")
 
-      setVacations(syncData.vacations)
-      setLastSync(new Date(syncData.timestamp))
-      setLastUpdatedBy(syncData.lastUpdatedBy)
+  // Funzione per caricare i dati dal database
+  const loadData = useCallback(async () => {
+    if (!currentUser) return
 
-      // Se l'utente corrente è cambiato, aggiorna anche lo stato admin
-      if (currentUser) {
-        const users = syncData.users
-        const user = users.find((u: any) => u.username === currentUser)
-        if (user) {
-          setIsAdmin(user.role === "admin")
-        }
-      }
-    },
-    [currentUser],
-  )
+    try {
+      console.log("📊 Caricamento dati dal database...")
 
-  // Hook per la sincronizzazione automatica
-  const { publishUpdate, forcSync } = useSync(currentUser || "", handleDataUpdate)
+      // Carica vacanze
+      const dbVacations = await database.getVacations()
+      setVacations(dbVacations)
 
-  useEffect(() => {
-    // Inizializza gli utenti se non esistono già
-    initializeUsers()
-
-    const savedUser = localStorage.getItem("currentUser")
-    if (savedUser) {
-      setCurrentUser(savedUser)
-      checkIfAdmin(savedUser)
-    }
-
-    const savedVacations = localStorage.getItem("vacations")
-    if (savedVacations) {
-      setVacations(JSON.parse(savedVacations))
-    } else {
-      // Inizializza con una vacanza di esempio se non ce ne sono
-      const exampleVacation: Vacation = {
-        id: "1",
-        title: "Vacanza in Sardegna",
-        description: "Una settimana di relax nelle spiagge della Sardegna",
-        startDate: "2023-07-15",
-        endDate: "2023-07-22",
-        location: "Sardegna, Italia",
-        imageUrl: "/placeholder.svg?height=200&width=400",
-        createdBy: "admin",
-        createdAt: new Date().toISOString(),
-        participants: [],
-      }
-      setVacations([exampleVacation])
-      localStorage.setItem("vacations", JSON.stringify([exampleVacation]))
-      // Pubblica l'aggiornamento iniziale
-      setTimeout(() => publishUpdate(), 100)
-    }
-
-    // Pulizia automatica dei codici di sincronizzazione scaduti
-    cleanupExpiredSyncCodes()
-
-    // Listener per sincronizzazione forzata
-    const handleForceSync = () => {
-      console.log("🔄 Sincronizzazione forzata richiesta")
-      forcSync()
-    }
-
-    window.addEventListener("force-vacation-sync", handleForceSync)
-
-    return () => {
-      window.removeEventListener("force-vacation-sync", handleForceSync)
-    }
-  }, [publishUpdate, forcSync])
-
-  // Funzione per pulire i codici di sincronizzazione scaduti
-  const cleanupExpiredSyncCodes = () => {
-    const keys = Object.keys(localStorage)
-    const now = Date.now()
-
-    keys.forEach((key) => {
-      if (key.startsWith("sync_") && key.endsWith("_expires")) {
-        const expires = Number.parseInt(localStorage.getItem(key) || "0")
-        if (now > expires) {
-          const codeKey = key.replace("_expires", "")
-          const creatorKey = key.replace("_expires", "_creator")
-          localStorage.removeItem(key)
-          localStorage.removeItem(codeKey)
-          localStorage.removeItem(creatorKey)
-        }
-      }
-    })
-  }
-
-  // Funzione per inizializzare gli utenti se non esistono già
-  const initializeUsers = async () => {
-    if (!localStorage.getItem("users")) {
-      const { users: defaultUsers } = await import("@/data/users")
-      localStorage.setItem("users", JSON.stringify(defaultUsers))
-    }
-  }
-
-  const checkIfAdmin = (username: string) => {
-    // Controlla se l'utente è admin
-    const savedUsers = localStorage.getItem("users")
-    if (savedUsers) {
-      const users = JSON.parse(savedUsers)
-      const user = users.find((u: any) => u.username === username)
+      // Carica utenti per verificare se l'utente corrente è admin
+      const users = await database.getUsers()
+      const user = users.find((u: any) => u.username === currentUser)
       setIsAdmin(user?.role === "admin")
-    } else {
-      import("@/data/users").then(({ users }) => {
-        const user = users.find((u) => u.username === username)
-        setIsAdmin(user?.role === "admin")
-      })
-    }
-  }
 
-  const handleLogin = (username: string) => {
+      console.log(`✅ Caricati ${dbVacations.length} vacanze dal database`)
+    } catch (error) {
+      console.error("❌ Errore nel caricamento dati:", error)
+    }
+  }, [currentUser, database])
+
+  // Effetto per inizializzare l'app
+  useEffect(() => {
+    const initializeApp = async () => {
+      console.log("🚀 Inizializzazione app...")
+
+      // Controlla se ci sono dati da migrare
+      const hasOldData = localStorage.getItem("vacations") || localStorage.getItem("users")
+
+      if (hasOldData) {
+        console.log("🔄 Rilevati dati legacy, avvio migrazione...")
+        try {
+          await database.migrateFromLocalStorage()
+          console.log("✅ Migrazione completata")
+        } catch (error) {
+          console.error("❌ Errore durante la migrazione:", error)
+        }
+      }
+
+      // Inizializza utenti di default se il database è vuoto
+      const users = await database.getUsers()
+      if (users.length === 0) {
+        console.log("👥 Inizializzazione utenti di default...")
+        const { users: defaultUsers } = await import("@/data/users")
+        for (const user of defaultUsers) {
+          await database.createUser(user)
+        }
+      }
+
+      // Controlla se c'è un utente salvato
+      const savedUser = localStorage.getItem("currentUser")
+      if (savedUser) {
+        setCurrentUser(savedUser)
+      }
+
+      setIsInitialized(true)
+      console.log("✅ App inizializzata")
+    }
+
+    initializeApp()
+  }, [database])
+
+  // Effetto per caricare i dati quando l'utente cambia
+  useEffect(() => {
+    if (currentUser && isInitialized) {
+      loadData()
+    }
+  }, [currentUser, isInitialized, loadData])
+
+  const handleLogin = async (username: string) => {
     setCurrentUser(username)
     localStorage.setItem("currentUser", username)
-    checkIfAdmin(username)
 
-    // Forza una sincronizzazione al login
-    setTimeout(() => forcSync(), 500)
+    // Carica i dati dell'utente
+    const users = await database.getUsers()
+    const user = users.find((u: any) => u.username === username)
+    setIsAdmin(user?.role === "admin")
+
+    console.log(`👤 Utente ${username} ha effettuato l'accesso`)
   }
 
   const handleLogout = () => {
@@ -188,34 +149,34 @@ export default function Home() {
     localStorage.removeItem("currentUser")
     setCurrentView("main")
     setCurrentVacation(null)
+    setVacations([])
+    console.log("👋 Logout effettuato")
   }
 
-  const handleCreateVacation = (newVacation: Vacation) => {
-    const updatedVacations = [...vacations, newVacation]
-    setVacations(updatedVacations)
-    localStorage.setItem("vacations", JSON.stringify(updatedVacations))
-    setCurrentView("main")
-
-    // Pubblica l'aggiornamento
-    setTimeout(() => publishUpdate(), 100)
-  }
-
-  const handleDeleteVacation = (vacationId: string) => {
-    if (confirm("Sei sicuro di voler eliminare questa vacanza? Tutti i dati associati saranno persi.")) {
-      const updatedVacations = vacations.filter((v) => v.id !== vacationId)
-      setVacations(updatedVacations)
-      localStorage.setItem("vacations", JSON.stringify(updatedVacations))
-
-      // Rimuovi anche i dati associati a questa vacanza
-      localStorage.removeItem(`vacationDays_${vacationId}`)
-      localStorage.removeItem(`expenses_${vacationId}`)
-      localStorage.removeItem(`vacationNotes_${vacationId}`)
-
+  const handleCreateVacation = async (newVacation: Vacation) => {
+    try {
+      await database.createVacation(newVacation)
+      await loadData() // Ricarica i dati
       setCurrentView("main")
-      setCurrentVacation(null)
+    } catch (error) {
+      console.error("Errore nella creazione vacanza:", error)
+    }
+  }
 
-      // Pubblica l'aggiornamento
-      setTimeout(() => publishUpdate(), 100)
+  const handleDeleteVacation = async (vacationId: string) => {
+    if (confirm("Sei sicuro di voler eliminare questa vacanza? Tutti i dati associati saranno persi.")) {
+      try {
+        // Trova la vacanza nel database usando il dbId
+        const vacation = vacations.find((v) => v.id === vacationId)
+        if (vacation?.dbId) {
+          await database.deleteVacation(vacation.dbId)
+          await loadData() // Ricarica i dati
+          setCurrentView("main")
+          setCurrentVacation(null)
+        }
+      } catch (error) {
+        console.error("Errore nell'eliminazione vacanza:", error)
+      }
     }
   }
 
@@ -228,43 +189,33 @@ export default function Home() {
     setCurrentView(view)
   }
 
-  const handleExportData = () => {
-    // Raccogliamo tutti i dati da esportare
-    const exportData: any = {
-      vacations: vacations,
-      users: JSON.parse(localStorage.getItem("users") || "[]"),
-      exportedBy: currentUser,
-      exportedAt: new Date().toISOString(),
-      version: "2.0",
+  const handleExportData = async () => {
+    try {
+      const exportData = await database.exportDatabase()
+
+      // Creiamo un file JSON da scaricare
+      const dataStr = JSON.stringify(exportData, null, 2)
+      const dataUri = "data:application/json;charset=utf-8," + encodeURIComponent(dataStr)
+
+      const exportFileDefaultName = `vacation-planner-db-export-${new Date().toISOString().slice(0, 10)}.json`
+
+      const linkElement = document.createElement("a")
+      linkElement.setAttribute("href", dataUri)
+      linkElement.setAttribute("download", exportFileDefaultName)
+      linkElement.click()
+
+      toast({
+        title: "Esportazione completata",
+        description: "Il database è stato esportato con successo.",
+      })
+    } catch (error) {
+      console.error("Errore nell'esportazione:", error)
+      toast({
+        variant: "destructive",
+        title: "Errore esportazione",
+        description: "Si è verificato un errore durante l'esportazione.",
+      })
     }
-
-    // Per ogni vacanza, aggiungiamo i dati correlati
-    vacations.forEach((vacation) => {
-      const vacationId = vacation.id
-      const days = localStorage.getItem(`vacationDays_${vacationId}`)
-      const expenses = localStorage.getItem(`expenses_${vacationId}`)
-      const notes = localStorage.getItem(`vacationNotes_${vacationId}`)
-
-      exportData[`vacationDays_${vacationId}`] = days ? JSON.parse(days) : []
-      exportData[`expenses_${vacationId}`] = expenses ? JSON.parse(expenses) : []
-      exportData[`vacationNotes_${vacationId}`] = notes ? JSON.parse(notes) : []
-    })
-
-    // Creiamo un file JSON da scaricare
-    const dataStr = JSON.stringify(exportData, null, 2)
-    const dataUri = "data:application/json;charset=utf-8," + encodeURIComponent(dataStr)
-
-    const exportFileDefaultName = `vacation-planner-export-${new Date().toISOString().slice(0, 10)}.json`
-
-    const linkElement = document.createElement("a")
-    linkElement.setAttribute("href", dataUri)
-    linkElement.setAttribute("download", exportFileDefaultName)
-    linkElement.click()
-
-    toast({
-      title: "Esportazione completata",
-      description: "I dati sono stati esportati con successo.",
-    })
   }
 
   const handleImportData = () => {
@@ -273,26 +224,27 @@ export default function Home() {
     }
   }
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
 
     const reader = new FileReader()
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const importedData = JSON.parse(e.target?.result as string)
 
         // Verifichiamo che il file contenga i dati necessari
-        if (!importedData.vacations) {
+        if (!importedData.users && !importedData.vacations) {
           throw new Error("Il file non contiene dati validi")
         }
 
         // Mostra informazioni sull'importazione
         const confirmMessage = `
-Stai per importare dati da: ${importedData.exportedBy || "Utente sconosciuto"}
-Esportati il: ${importedData.exportedAt ? new Date(importedData.exportedAt).toLocaleString() : "Data sconosciuta"}
-Vacanze: ${importedData.vacations?.length || 0}
+Stai per importare un database completo.
+Versione: ${importedData.version || "Sconosciuta"}
+Esportato il: ${importedData.exportedAt ? new Date(importedData.exportedAt).toLocaleString() : "Data sconosciuta"}
 Utenti: ${importedData.users?.length || 0}
+Vacanze: ${importedData.vacations?.length || 0}
 
 Questa operazione sovrascriverà tutti i dati attuali. Continuare?`
 
@@ -300,41 +252,12 @@ Questa operazione sovrascriverà tutti i dati attuali. Continuare?`
           return
         }
 
-        // Importiamo i dati
-        localStorage.setItem("vacations", JSON.stringify(importedData.vacations))
-        if (importedData.users) {
-          localStorage.setItem("users", JSON.stringify(importedData.users))
-        }
-
-        // Importiamo i dati correlati per ogni vacanza
-        importedData.vacations.forEach((vacation: Vacation) => {
-          const vacationId = vacation.id
-          if (importedData[`vacationDays_${vacationId}`]) {
-            localStorage.setItem(
-              `vacationDays_${vacationId}`,
-              JSON.stringify(importedData[`vacationDays_${vacationId}`]),
-            )
-          }
-          if (importedData[`expenses_${vacationId}`]) {
-            localStorage.setItem(`expenses_${vacationId}`, JSON.stringify(importedData[`expenses_${vacationId}`]))
-          }
-          if (importedData[`vacationNotes_${vacationId}`]) {
-            localStorage.setItem(
-              `vacationNotes_${vacationId}`,
-              JSON.stringify(importedData[`vacationNotes_${vacationId}`]),
-            )
-          }
-        })
-
-        // Aggiorniamo lo stato
-        setVacations(importedData.vacations)
-
-        // Pubblica l'aggiornamento
-        setTimeout(() => publishUpdate(), 100)
+        await database.importDatabase(importedData)
+        await loadData() // Ricarica i dati
 
         toast({
           title: "Importazione completata",
-          description: `Dati importati con successo da ${importedData.exportedBy || "file di backup"}.`,
+          description: "Il database è stato importato con successo.",
         })
       } catch (error) {
         console.error("Errore durante l'importazione:", error)
@@ -351,6 +274,19 @@ Questa operazione sovrascriverà tutti i dati attuali. Continuare?`
     if (event.target) {
       event.target.value = ""
     }
+  }
+
+  // Mostra loading se non inizializzato
+  if (!isInitialized) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-blue-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Inizializzazione Database</h2>
+          <p className="text-gray-600">Configurazione del sistema in corso...</p>
+        </div>
+      </div>
+    )
   }
 
   if (!currentUser) {
@@ -372,9 +308,9 @@ Questa operazione sovrascriverà tutti i dati attuali. Continuare?`
           onLogout={handleLogout}
           onUserProfile={() => setCurrentView("user-profile")}
           onSyncManager={() => setCurrentView("sync-manager")}
-          lastSync={lastSync}
-          lastUpdatedBy={lastUpdatedBy}
-          onPublishUpdate={publishUpdate}
+          lastSync={database.lastSync}
+          lastUpdatedBy={database.syncLog[0]?.createdBy || ""}
+          onPublishUpdate={loadData}
         />
       )}
 
@@ -387,7 +323,12 @@ Questa operazione sovrascriverà tutti i dati attuali. Continuare?`
       )}
 
       {currentView === "manage-users" && (
-        <UserManager currentUser={currentUser} onBack={() => setCurrentView("main")} onPublishUpdate={publishUpdate} />
+        <UserManager
+          currentUser={currentUser}
+          onBack={() => setCurrentView("main")}
+          onPublishUpdate={loadData}
+          database={database}
+        />
       )}
 
       {currentView === "vacation" && currentVacation && (
@@ -405,7 +346,8 @@ Questa operazione sovrascriverà tutti i dati attuali. Continuare?`
           currentUser={currentUser}
           vacationId={currentVacation.id}
           onBack={() => setCurrentView("vacation")}
-          onPublishUpdate={publishUpdate}
+          onPublishUpdate={loadData}
+          database={database}
         />
       )}
 
@@ -414,7 +356,8 @@ Questa operazione sovrascriverà tutti i dati attuali. Continuare?`
           currentUser={currentUser}
           vacationId={currentVacation.id}
           onBack={() => setCurrentView("vacation")}
-          onPublishUpdate={publishUpdate}
+          onPublishUpdate={loadData}
+          database={database}
         />
       )}
 
@@ -423,16 +366,34 @@ Questa operazione sovrascriverà tutti i dati attuali. Continuare?`
           currentUser={currentUser}
           vacationId={currentVacation.id}
           onBack={() => setCurrentView("vacation")}
-          onPublishUpdate={publishUpdate}
+          onPublishUpdate={loadData}
+          database={database}
+        />
+      )}
+
+      {currentView === "manage-participants" && currentVacation && (
+        <VacationParticipantsManager
+          currentUser={currentUser}
+          vacation={currentVacation}
+          onBack={() => setCurrentView("vacation")}
+          onVacationUpdate={(updatedVacation) => {
+            setCurrentVacation(updatedVacation)
+            loadData() // Ricarica tutti i dati
+          }}
         />
       )}
 
       {currentView === "user-profile" && (
-        <UserProfile currentUser={currentUser} onBack={() => setCurrentView("main")} onPublishUpdate={publishUpdate} />
+        <UserProfile
+          currentUser={currentUser}
+          onBack={() => setCurrentView("main")}
+          onPublishUpdate={loadData}
+          database={database}
+        />
       )}
 
       {currentView === "sync-manager" && (
-        <SyncManager currentUser={currentUser} onBack={() => setCurrentView("main")} />
+        <SyncManager currentUser={currentUser} onBack={() => setCurrentView("main")} database={database} />
       )}
 
       {/* Input file nascosto per l'importazione */}
