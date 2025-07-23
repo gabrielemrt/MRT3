@@ -60,6 +60,10 @@ export default function Home() {
   // Callback per gestire gli aggiornamenti dei dati dalla sincronizzazione
   const handleDataUpdate = useCallback(
     (syncData: any) => {
+      console.log(
+        `📥 Ricevuto aggiornamento da ${syncData.lastUpdatedBy} alle ${new Date(syncData.timestamp).toLocaleTimeString()}`,
+      )
+
       setVacations(syncData.vacations)
       setLastSync(new Date(syncData.timestamp))
       setLastUpdatedBy(syncData.lastUpdatedBy)
@@ -77,7 +81,7 @@ export default function Home() {
   )
 
   // Hook per la sincronizzazione automatica
-  const { publishUpdate } = useSync(currentUser || "", handleDataUpdate)
+  const { publishUpdate, forcSync } = useSync(currentUser || "", handleDataUpdate)
 
   useEffect(() => {
     // Inizializza gli utenti se non esistono già
@@ -114,7 +118,19 @@ export default function Home() {
 
     // Pulizia automatica dei codici di sincronizzazione scaduti
     cleanupExpiredSyncCodes()
-  }, [publishUpdate])
+
+    // Listener per sincronizzazione forzata
+    const handleForceSync = () => {
+      console.log("🔄 Sincronizzazione forzata richiesta")
+      forcSync()
+    }
+
+    window.addEventListener("force-vacation-sync", handleForceSync)
+
+    return () => {
+      window.removeEventListener("force-vacation-sync", handleForceSync)
+    }
+  }, [publishUpdate, forcSync])
 
   // Funzione per pulire i codici di sincronizzazione scaduti
   const cleanupExpiredSyncCodes = () => {
@@ -126,8 +142,10 @@ export default function Home() {
         const expires = Number.parseInt(localStorage.getItem(key) || "0")
         if (now > expires) {
           const codeKey = key.replace("_expires", "")
+          const creatorKey = key.replace("_expires", "_creator")
           localStorage.removeItem(key)
           localStorage.removeItem(codeKey)
+          localStorage.removeItem(creatorKey)
         }
       }
     })
@@ -160,6 +178,9 @@ export default function Home() {
     setCurrentUser(username)
     localStorage.setItem("currentUser", username)
     checkIfAdmin(username)
+
+    // Forza una sincronizzazione al login
+    setTimeout(() => forcSync(), 500)
   }
 
   const handleLogout = () => {
@@ -212,6 +233,9 @@ export default function Home() {
     const exportData: any = {
       vacations: vacations,
       users: JSON.parse(localStorage.getItem("users") || "[]"),
+      exportedBy: currentUser,
+      exportedAt: new Date().toISOString(),
+      version: "2.0",
     }
 
     // Per ogni vacanza, aggiungiamo i dati correlati
@@ -263,6 +287,19 @@ export default function Home() {
           throw new Error("Il file non contiene dati validi")
         }
 
+        // Mostra informazioni sull'importazione
+        const confirmMessage = `
+Stai per importare dati da: ${importedData.exportedBy || "Utente sconosciuto"}
+Esportati il: ${importedData.exportedAt ? new Date(importedData.exportedAt).toLocaleString() : "Data sconosciuta"}
+Vacanze: ${importedData.vacations?.length || 0}
+Utenti: ${importedData.users?.length || 0}
+
+Questa operazione sovrascriverà tutti i dati attuali. Continuare?`
+
+        if (!confirm(confirmMessage)) {
+          return
+        }
+
         // Importiamo i dati
         localStorage.setItem("vacations", JSON.stringify(importedData.vacations))
         if (importedData.users) {
@@ -297,7 +334,7 @@ export default function Home() {
 
         toast({
           title: "Importazione completata",
-          description: "I dati sono stati importati con successo.",
+          description: `Dati importati con successo da ${importedData.exportedBy || "file di backup"}.`,
         })
       } catch (error) {
         console.error("Errore durante l'importazione:", error)
