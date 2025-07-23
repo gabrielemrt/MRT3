@@ -9,10 +9,16 @@ export function useDatabase(currentUser: string) {
   const [lastSync, setLastSync] = useState<Date | null>(null)
   const [syncLog, setSyncLog] = useState<DatabaseTable[]>([])
   const isLoadingRef = useRef(false)
+  const [isMounted, setIsMounted] = useState(false)
+
+  // Effetto per gestire il mounting
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   // Funzione per ricaricare i log di sincronizzazione (ottimizzata)
   const loadSyncLog = useCallback(async () => {
-    if (isLoadingRef.current) return
+    if (isLoadingRef.current || !isMounted || !db) return
 
     try {
       isLoadingRef.current = true
@@ -27,10 +33,12 @@ export function useDatabase(currentUser: string) {
     } finally {
       isLoadingRef.current = false
     }
-  }, [])
+  }, [isMounted])
 
   // Effetto per ascoltare i cambiamenti del database (ottimizzato)
   useEffect(() => {
+    if (!isMounted || !db) return
+
     let timeoutId: NodeJS.Timeout
 
     const debouncedLoadSyncLog = () => {
@@ -49,10 +57,12 @@ export function useDatabase(currentUser: string) {
       clearTimeout(timeoutId)
       unsubscribe()
     }
-  }, [loadSyncLog])
+  }, [loadSyncLog, isMounted])
 
   // Funzioni per gestire gli utenti
   const getUsers = useCallback(async () => {
+    if (!db) return []
+
     try {
       const users = await db.findAll("users")
       return users.map((record) => record.data)
@@ -64,6 +74,8 @@ export function useDatabase(currentUser: string) {
 
   const createUser = useCallback(
     async (userData: any) => {
+      if (!db) throw new Error("Database non disponibile")
+
       try {
         setIsLoading(true)
         await db.insert("users", userData, currentUser)
@@ -87,6 +99,8 @@ export function useDatabase(currentUser: string) {
 
   const updateUser = useCallback(
     async (userId: string, userData: any) => {
+      if (!db) throw new Error("Database non disponibile")
+
       try {
         setIsLoading(true)
         await db.update("users", userId, userData, currentUser)
@@ -110,6 +124,8 @@ export function useDatabase(currentUser: string) {
 
   const deleteUser = useCallback(
     async (userId: string) => {
+      if (!db) throw new Error("Database non disponibile")
+
       try {
         setIsLoading(true)
         await db.delete("users", userId, currentUser)
@@ -133,6 +149,8 @@ export function useDatabase(currentUser: string) {
 
   // Funzioni per gestire le vacanze
   const getVacations = useCallback(async () => {
+    if (!db) return []
+
     try {
       const vacations = await db.findAll("vacations")
       return vacations.map((record) => ({ ...record.data, dbId: record.id }))
@@ -144,6 +162,8 @@ export function useDatabase(currentUser: string) {
 
   const createVacation = useCallback(
     async (vacationData: any) => {
+      if (!db) throw new Error("Database non disponibile")
+
       try {
         setIsLoading(true)
         await db.insert("vacations", vacationData, currentUser)
@@ -167,6 +187,8 @@ export function useDatabase(currentUser: string) {
 
   const updateVacation = useCallback(
     async (vacationId: string, vacationData: any) => {
+      if (!db) throw new Error("Database non disponibile")
+
       try {
         setIsLoading(true)
         await db.update("vacations", vacationId, vacationData, currentUser)
@@ -190,6 +212,8 @@ export function useDatabase(currentUser: string) {
 
   const deleteVacation = useCallback(
     async (vacationId: string) => {
+      if (!db) throw new Error("Database non disponibile")
+
       try {
         setIsLoading(true)
 
@@ -232,6 +256,8 @@ export function useDatabase(currentUser: string) {
 
   // Funzioni per gestire i giorni delle vacanze
   const getVacationDays = useCallback(async (vacationId: string) => {
+    if (!db) return []
+
     try {
       const days = await db.findWhere("vacation_days", (record) => record.data.vacationId === vacationId)
       return days.map((record) => ({ ...record.data, dbId: record.id }))
@@ -243,6 +269,8 @@ export function useDatabase(currentUser: string) {
 
   const createVacationDay = useCallback(
     async (dayData: any) => {
+      if (!db) throw new Error("Database non disponibile")
+
       try {
         await db.insert("vacation_days", dayData, currentUser)
       } catch (error) {
@@ -255,6 +283,8 @@ export function useDatabase(currentUser: string) {
 
   const updateVacationDay = useCallback(
     async (dayId: string, dayData: any) => {
+      if (!db) throw new Error("Database non disponibile")
+
       try {
         await db.update("vacation_days", dayId, dayData, currentUser)
       } catch (error) {
@@ -267,6 +297,8 @@ export function useDatabase(currentUser: string) {
 
   const deleteVacationDay = useCallback(
     async (dayId: string) => {
+      if (!db) throw new Error("Database non disponibile")
+
       try {
         await db.delete("vacation_days", dayId, currentUser)
       } catch (error) {
@@ -279,6 +311,8 @@ export function useDatabase(currentUser: string) {
 
   // Funzioni per gestire le spese
   const getExpenses = useCallback(async (vacationId: string) => {
+    if (!db) return []
+
     try {
       const expenses = await db.findWhere("expenses", (record) => record.data.vacationId === vacationId)
       return expenses.map((record) => ({ ...record.data, dbId: record.id }))
@@ -290,6 +324,8 @@ export function useDatabase(currentUser: string) {
 
   const createExpense = useCallback(
     async (expenseData: any) => {
+      if (!db) throw new Error("Database non disponibile")
+
       try {
         await db.insert("expenses", expenseData, currentUser)
       } catch (error) {
@@ -302,6 +338,8 @@ export function useDatabase(currentUser: string) {
 
   const updateExpense = useCallback(
     async (expenseId: string, expenseData: any) => {
+      if (!db) throw new Error("Database non disponibile")
+
       try {
         await db.update("expenses", expenseId, expenseData, currentUser)
       } catch (error) {
@@ -314,6 +352,8 @@ export function useDatabase(currentUser: string) {
 
   const deleteExpense = useCallback(
     async (expenseId: string) => {
+      if (!db) throw new Error("Database non disponibile")
+
       try {
         await db.delete("expenses", expenseId, currentUser)
       } catch (error) {
@@ -326,6 +366,8 @@ export function useDatabase(currentUser: string) {
 
   // Funzioni per gestire le note
   const getNotes = useCallback(async (vacationId: string) => {
+    if (!db) return []
+
     try {
       const notes = await db.findWhere("notes", (record) => record.data.vacationId === vacationId)
       return notes.map((record) => ({ ...record.data, dbId: record.id }))
@@ -337,6 +379,8 @@ export function useDatabase(currentUser: string) {
 
   const createNote = useCallback(
     async (noteData: any) => {
+      if (!db) throw new Error("Database non disponibile")
+
       try {
         await db.insert("notes", noteData, currentUser)
       } catch (error) {
@@ -349,6 +393,8 @@ export function useDatabase(currentUser: string) {
 
   const updateNote = useCallback(
     async (noteId: string, noteData: any) => {
+      if (!db) throw new Error("Database non disponibile")
+
       try {
         await db.update("notes", noteId, noteData, currentUser)
       } catch (error) {
@@ -361,6 +407,8 @@ export function useDatabase(currentUser: string) {
 
   const deleteNote = useCallback(
     async (noteId: string) => {
+      if (!db) throw new Error("Database non disponibile")
+
       try {
         await db.delete("notes", noteId, currentUser)
       } catch (error) {
@@ -373,6 +421,8 @@ export function useDatabase(currentUser: string) {
 
   // Funzioni di utilità
   const migrateFromLocalStorage = useCallback(async () => {
+    if (!db) throw new Error("Database non disponibile")
+
     try {
       setIsLoading(true)
       await db.migrateFromLocalStorage(currentUser)
@@ -393,6 +443,8 @@ export function useDatabase(currentUser: string) {
   }, [currentUser])
 
   const exportDatabase = useCallback(async () => {
+    if (!db) throw new Error("Database non disponibile")
+
     try {
       return await db.exportDatabase()
     } catch (error) {
@@ -403,9 +455,11 @@ export function useDatabase(currentUser: string) {
 
   const importDatabase = useCallback(
     async (importedData: any) => {
+      if (!db) throw new Error("Database non disponibile")
+
       try {
         setIsLoading(true)
-        await db.importDatabase(importedData, currentUser)
+        await db.importDatabase(importedData)
         toast({
           title: "Importazione completata",
           description: "I dati sono stati importati con successo.",
@@ -417,7 +471,6 @@ export function useDatabase(currentUser: string) {
           title: "Errore importazione",
           description: "Si è verificato un errore durante l'importazione dei dati.",
         })
-        throw error
       } finally {
         setIsLoading(false)
       }
@@ -426,41 +479,42 @@ export function useDatabase(currentUser: string) {
   )
 
   return {
+    /* flags */
     isLoading,
     lastSync,
     syncLog,
 
-    // Utenti
+    /* users */
     getUsers,
     createUser,
     updateUser,
     deleteUser,
 
-    // Vacanze
+    /* vacations */
     getVacations,
     createVacation,
     updateVacation,
     deleteVacation,
 
-    // Giorni vacanza
+    /* vacation-days */
     getVacationDays,
     createVacationDay,
     updateVacationDay,
     deleteVacationDay,
 
-    // Spese
+    /* expenses */
     getExpenses,
     createExpense,
     updateExpense,
     deleteExpense,
 
-    // Note
+    /* notes */
     getNotes,
     createNote,
     updateNote,
     deleteNote,
 
-    // Utilità
+    /* utils */
     migrateFromLocalStorage,
     exportDatabase,
     importDatabase,

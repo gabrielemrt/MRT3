@@ -57,15 +57,21 @@ export default function Home() {
   const [currentVacation, setCurrentVacation] = useState<Vacation | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [isInitialized, setIsInitialized] = useState(false)
+  const [isMounted, setIsMounted] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const isLoadingRef = useRef(false)
 
   // Hook del database
   const database = useDatabase(currentUser || "system")
 
+  // Effetto per gestire il mounting del componente
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
   // Funzione per caricare i dati dal database (ottimizzata)
   const loadData = useCallback(async () => {
-    if (!currentUser || isLoadingRef.current) return
+    if (!currentUser || isLoadingRef.current || !isMounted) return
 
     try {
       isLoadingRef.current = true
@@ -83,18 +89,21 @@ export default function Home() {
     } finally {
       isLoadingRef.current = false
     }
-  }, [currentUser, database])
+  }, [currentUser, database, isMounted])
 
   // Effetto per inizializzare l'app (ottimizzato)
   useEffect(() => {
-    let isMounted = true
+    if (!isMounted) return
+
+    let isEffectActive = true
 
     const initializeApp = async () => {
-      if (!isMounted) return
+      if (!isEffectActive) return
 
       try {
         // Controlla se ci sono dati da migrare
-        const hasOldData = localStorage.getItem("vacations") || localStorage.getItem("users")
+        const hasOldData =
+          typeof window !== "undefined" && (localStorage.getItem("vacations") || localStorage.getItem("users"))
 
         if (hasOldData) {
           try {
@@ -114,17 +123,17 @@ export default function Home() {
         }
 
         // Controlla se c'è un utente salvato
-        const savedUser = localStorage.getItem("currentUser")
-        if (savedUser && isMounted) {
+        const savedUser = typeof window !== "undefined" ? localStorage.getItem("currentUser") : null
+        if (savedUser && isEffectActive) {
           setCurrentUser(savedUser)
         }
 
-        if (isMounted) {
+        if (isEffectActive) {
           setIsInitialized(true)
         }
       } catch (error) {
         console.error("Errore nell'inizializzazione:", error)
-        if (isMounted) {
+        if (isEffectActive) {
           setIsInitialized(true)
         }
       }
@@ -133,20 +142,22 @@ export default function Home() {
     initializeApp()
 
     return () => {
-      isMounted = false
+      isEffectActive = false
     }
-  }, [database])
+  }, [database, isMounted])
 
   // Effetto per caricare i dati quando l'utente cambia (ottimizzato)
   useEffect(() => {
-    if (currentUser && isInitialized) {
+    if (currentUser && isInitialized && isMounted) {
       loadData()
     }
-  }, [currentUser, isInitialized, loadData])
+  }, [currentUser, isInitialized, isMounted, loadData])
 
   const handleLogin = async (username: string) => {
     setCurrentUser(username)
-    localStorage.setItem("currentUser", username)
+    if (typeof window !== "undefined") {
+      localStorage.setItem("currentUser", username)
+    }
 
     // Carica i dati dell'utente
     const users = await database.getUsers()
@@ -156,7 +167,9 @@ export default function Home() {
 
   const handleLogout = () => {
     setCurrentUser(null)
-    localStorage.removeItem("currentUser")
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("currentUser")
+    }
     setCurrentView("main")
     setCurrentVacation(null)
     setVacations([])
@@ -285,8 +298,8 @@ Questa operazione sovrascriverà tutti i dati attuali. Continuare?`
     }
   }
 
-  // Mostra loading se non inizializzato
-  if (!isInitialized) {
+  // Mostra loading se non inizializzato o non montato
+  if (!isInitialized || !isMounted) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-blue-50 flex items-center justify-center">
         <div className="text-center">

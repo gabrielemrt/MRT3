@@ -19,6 +19,9 @@ export interface DatabaseSchema {
   sync_log: DatabaseTable[]
 }
 
+// Utility per verificare se siamo nel browser
+const isBrowser = typeof window !== "undefined"
+
 class InternalDatabase {
   private dbKey = "vacation_planner_db"
   private lockKey = "vacation_planner_db_lock"
@@ -26,12 +29,15 @@ class InternalDatabase {
   private isInitialized = false
 
   constructor() {
-    this.initializeDatabase()
-    this.setupStorageListener()
+    // Inizializza solo nel browser
+    if (isBrowser) {
+      this.initializeDatabase()
+      this.setupStorageListener()
+    }
   }
 
   private initializeDatabase() {
-    if (this.isInitialized) return
+    if (this.isInitialized || !isBrowser) return
 
     const existingDb = localStorage.getItem(this.dbKey)
     if (!existingDb) {
@@ -49,6 +55,8 @@ class InternalDatabase {
   }
 
   private setupStorageListener() {
+    if (!isBrowser) return
+
     let debounceTimeout: NodeJS.Timeout
 
     const debouncedNotify = () => {
@@ -69,7 +77,9 @@ class InternalDatabase {
   }
 
   private async acquireLock(): Promise<boolean> {
-    const lockTimeout = 2000 // Ridotto a 2 secondi
+    if (!isBrowser) return true // Nel server, non serve il lock
+
+    const lockTimeout = 2000
     const lockStart = Date.now()
 
     while (Date.now() - lockStart < lockTimeout) {
@@ -84,10 +94,23 @@ class InternalDatabase {
   }
 
   private releaseLock() {
+    if (!isBrowser) return
     localStorage.removeItem(this.lockKey)
   }
 
   private getDatabase(): DatabaseSchema {
+    if (!isBrowser) {
+      // Ritorna un database vuoto nel server
+      return {
+        users: [],
+        vacations: [],
+        vacation_days: [],
+        expenses: [],
+        notes: [],
+        sync_log: [],
+      }
+    }
+
     const db = localStorage.getItem(this.dbKey)
     if (!db) {
       throw new Error("Database non trovato")
@@ -96,6 +119,8 @@ class InternalDatabase {
   }
 
   private saveDatabase(db: DatabaseSchema) {
+    if (!isBrowser) return
+
     localStorage.setItem(this.dbKey, JSON.stringify(db))
 
     // Notifica altri tab/finestre (debounced)
@@ -117,6 +142,10 @@ class InternalDatabase {
   // Metodi pubblici per gestire i dati
 
   async insert<T>(table: keyof DatabaseSchema, data: T, userId: string): Promise<string> {
+    if (!isBrowser) {
+      throw new Error("Database non disponibile nel server")
+    }
+
     if (!(await this.acquireLock())) {
       throw new Error("Impossibile acquisire il lock del database")
     }
@@ -147,6 +176,10 @@ class InternalDatabase {
   }
 
   async update<T>(table: keyof DatabaseSchema, id: string, data: Partial<T>, userId: string): Promise<boolean> {
+    if (!isBrowser) {
+      throw new Error("Database non disponibile nel server")
+    }
+
     if (!(await this.acquireLock())) {
       throw new Error("Impossibile acquisire il lock del database")
     }
@@ -178,6 +211,10 @@ class InternalDatabase {
   }
 
   async delete(table: keyof DatabaseSchema, id: string, userId: string): Promise<boolean> {
+    if (!isBrowser) {
+      throw new Error("Database non disponibile nel server")
+    }
+
     if (!(await this.acquireLock())) {
       throw new Error("Impossibile acquisire il lock del database")
     }
@@ -220,6 +257,8 @@ class InternalDatabase {
   }
 
   private logSync(operation: string, table: string, recordId: string, userId: string) {
+    if (!isBrowser) return
+
     try {
       const db = this.getDatabase()
       const logEntry: DatabaseTable = {
@@ -251,6 +290,10 @@ class InternalDatabase {
 
   // Metodi per la migrazione dai dati esistenti
   async migrateFromLocalStorage(userId: string): Promise<void> {
+    if (!isBrowser) {
+      throw new Error("Migrazione non disponibile nel server")
+    }
+
     try {
       // Migra utenti
       const existingUsers = localStorage.getItem("users")
@@ -316,6 +359,10 @@ class InternalDatabase {
   }
 
   async importDatabase(importedDb: any, userId: string): Promise<void> {
+    if (!isBrowser) {
+      throw new Error("Importazione non disponibile nel server")
+    }
+
     if (!(await this.acquireLock())) {
       throw new Error("Impossibile acquisire il lock del database")
     }
@@ -349,6 +396,11 @@ class InternalDatabase {
 
   // Listener per cambiamenti del database
   onDatabaseChange(callback: () => void) {
+    if (!isBrowser) {
+      // Nel server, ritorna una funzione vuota
+      return () => {}
+    }
+
     this.listeners.add(callback)
     return () => this.listeners.delete(callback)
   }
@@ -360,6 +412,10 @@ class InternalDatabase {
   }
 
   async clearDatabase(): Promise<void> {
+    if (!isBrowser) {
+      throw new Error("Pulizia database non disponibile nel server")
+    }
+
     if (!(await this.acquireLock())) {
       throw new Error("Impossibile acquisire il lock del database")
     }
@@ -380,5 +436,5 @@ class InternalDatabase {
   }
 }
 
-// Singleton instance
-export const db = new InternalDatabase()
+// Singleton instance - inizializzato solo nel browser
+export const db = isBrowser ? new InternalDatabase() : (null as any)
