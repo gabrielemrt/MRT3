@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { LoginForm } from "@/components/login-form"
 import { MainDashboard } from "@/components/main-dashboard"
 import { VacationDashboard } from "@/components/vacation-dashboard"
@@ -15,6 +15,7 @@ import { UserProfile } from "@/components/user-profile"
 import { SyncManager } from "@/components/sync-manager"
 import { toast } from "@/components/ui/use-toast"
 import { Toaster } from "@/components/ui/toaster"
+import { useSync } from "@/hooks/use-sync"
 
 export type View =
   | "main"
@@ -37,6 +38,13 @@ export interface Vacation {
   imageUrl?: string
   createdBy: string
   createdAt: string
+  participants: VacationParticipant[]
+}
+
+export interface VacationParticipant {
+  username: string
+  role: "admin" | "member"
+  joinedAt: string
 }
 
 export default function Home() {
@@ -45,7 +53,31 @@ export default function Home() {
   const [vacations, setVacations] = useState<Vacation[]>([])
   const [currentVacation, setCurrentVacation] = useState<Vacation | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [lastSync, setLastSync] = useState<Date | null>(null)
+  const [lastUpdatedBy, setLastUpdatedBy] = useState<string>("")
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Callback per gestire gli aggiornamenti dei dati dalla sincronizzazione
+  const handleDataUpdate = useCallback(
+    (syncData: any) => {
+      setVacations(syncData.vacations)
+      setLastSync(new Date(syncData.timestamp))
+      setLastUpdatedBy(syncData.lastUpdatedBy)
+
+      // Se l'utente corrente è cambiato, aggiorna anche lo stato admin
+      if (currentUser) {
+        const users = syncData.users
+        const user = users.find((u: any) => u.username === currentUser)
+        if (user) {
+          setIsAdmin(user.role === "admin")
+        }
+      }
+    },
+    [currentUser],
+  )
+
+  // Hook per la sincronizzazione automatica
+  const { publishUpdate } = useSync(currentUser || "", handleDataUpdate)
 
   useEffect(() => {
     // Inizializza gli utenti se non esistono già
@@ -72,14 +104,17 @@ export default function Home() {
         imageUrl: "/placeholder.svg?height=200&width=400",
         createdBy: "admin",
         createdAt: new Date().toISOString(),
+        participants: [],
       }
       setVacations([exampleVacation])
       localStorage.setItem("vacations", JSON.stringify([exampleVacation]))
+      // Pubblica l'aggiornamento iniziale
+      setTimeout(() => publishUpdate(), 100)
     }
 
     // Pulizia automatica dei codici di sincronizzazione scaduti
     cleanupExpiredSyncCodes()
-  }, [])
+  }, [publishUpdate])
 
   // Funzione per pulire i codici di sincronizzazione scaduti
   const cleanupExpiredSyncCodes = () => {
@@ -139,6 +174,9 @@ export default function Home() {
     setVacations(updatedVacations)
     localStorage.setItem("vacations", JSON.stringify(updatedVacations))
     setCurrentView("main")
+
+    // Pubblica l'aggiornamento
+    setTimeout(() => publishUpdate(), 100)
   }
 
   const handleDeleteVacation = (vacationId: string) => {
@@ -154,6 +192,9 @@ export default function Home() {
 
       setCurrentView("main")
       setCurrentVacation(null)
+
+      // Pubblica l'aggiornamento
+      setTimeout(() => publishUpdate(), 100)
     }
   }
 
@@ -251,6 +292,9 @@ export default function Home() {
         // Aggiorniamo lo stato
         setVacations(importedData.vacations)
 
+        // Pubblica l'aggiornamento
+        setTimeout(() => publishUpdate(), 100)
+
         toast({
           title: "Importazione completata",
           description: "I dati sono stati importati con successo.",
@@ -291,6 +335,9 @@ export default function Home() {
           onLogout={handleLogout}
           onUserProfile={() => setCurrentView("user-profile")}
           onSyncManager={() => setCurrentView("sync-manager")}
+          lastSync={lastSync}
+          lastUpdatedBy={lastUpdatedBy}
+          onPublishUpdate={publishUpdate}
         />
       )}
 
@@ -303,7 +350,7 @@ export default function Home() {
       )}
 
       {currentView === "manage-users" && (
-        <UserManager currentUser={currentUser} onBack={() => setCurrentView("main")} />
+        <UserManager currentUser={currentUser} onBack={() => setCurrentView("main")} onPublishUpdate={publishUpdate} />
       )}
 
       {currentView === "vacation" && currentVacation && (
@@ -321,6 +368,7 @@ export default function Home() {
           currentUser={currentUser}
           vacationId={currentVacation.id}
           onBack={() => setCurrentView("vacation")}
+          onPublishUpdate={publishUpdate}
         />
       )}
 
@@ -329,6 +377,7 @@ export default function Home() {
           currentUser={currentUser}
           vacationId={currentVacation.id}
           onBack={() => setCurrentView("vacation")}
+          onPublishUpdate={publishUpdate}
         />
       )}
 
@@ -337,11 +386,12 @@ export default function Home() {
           currentUser={currentUser}
           vacationId={currentVacation.id}
           onBack={() => setCurrentView("vacation")}
+          onPublishUpdate={publishUpdate}
         />
       )}
 
       {currentView === "user-profile" && (
-        <UserProfile currentUser={currentUser} onBack={() => setCurrentView("main")} />
+        <UserProfile currentUser={currentUser} onBack={() => setCurrentView("main")} onPublishUpdate={publishUpdate} />
       )}
 
       {currentView === "sync-manager" && (

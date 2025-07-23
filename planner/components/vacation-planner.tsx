@@ -17,6 +17,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { ArrowLeft, Calendar, Clock, MapPin, Plus } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import type { User } from "@/data/users"
+import { useVacationPermissions } from "@/hooks/use-vacation-permissions"
+import type { Vacation } from "@/data/vacations"
 
 interface VacationDay {
   id: string
@@ -64,6 +66,21 @@ export function VacationPlanner({ currentUser, vacationId, onBack }: VacationPla
   })
 
   const [users, setUsers] = useState<User[]>([])
+
+  // Aggiungi il controllo dei permessi
+  const [vacation, setVacation] = useState<Vacation | null>(null)
+
+  useEffect(() => {
+    // Carica i dati della vacanza
+    const savedVacations = localStorage.getItem("vacations")
+    if (savedVacations) {
+      const vacations = JSON.parse(savedVacations)
+      const currentVacation = vacations.find((v: any) => v.id === vacationId)
+      setVacation(currentVacation || null)
+    }
+  }, [vacationId])
+
+  const permissions = useVacationPermissions(vacation, currentUser)
 
   useEffect(() => {
     const saved = localStorage.getItem(`vacationDays_${vacationId}`)
@@ -244,12 +261,14 @@ export function VacationPlanner({ currentUser, vacationId, onBack }: VacationPla
           <h1 className="text-2xl font-bold">Planner Vacanza</h1>
         </div>
 
-        <div className="mb-6">
-          <Button onClick={() => setIsAddingDay(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Aggiungi Giorno
-          </Button>
-        </div>
+        {permissions?.canAddContent && (
+          <div className="mb-6">
+            <Button onClick={() => setIsAddingDay(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Aggiungi Giorno
+            </Button>
+          </div>
+        )}
 
         {isAddingDay && (
           <Card className="mb-6">
@@ -288,19 +307,23 @@ export function VacationPlanner({ currentUser, vacationId, onBack }: VacationPla
                       {getUserName(day.createdBy)}
                     </Badge>
                   </CardTitle>
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline" onClick={() => startEditDay(day)}>
-                      Modifica
-                    </Button>
-                    <Button size="sm" variant="destructive" onClick={() => deleteDay(day.id)}>
-                      Elimina
-                    </Button>
-                  </div>
+                  {permissions?.canEdit && (
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" onClick={() => startEditDay(day)}>
+                        Modifica
+                      </Button>
+                      <Button size="sm" variant="destructive" onClick={() => deleteDay(day.id)}>
+                        Elimina
+                      </Button>
+                    </div>
+                  )}
                 </div>
-                <Button size="sm" onClick={() => setIsAddingActivity(day.id)} className="w-fit">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Aggiungi Attività
-                </Button>
+                {permissions?.canAddContent && (
+                  <Button size="sm" onClick={() => setIsAddingActivity(day.id)} className="w-fit">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Aggiungi Attività
+                  </Button>
+                )}
               </CardHeader>
               <CardContent>
                 {isEditingDay === day.id && (
@@ -464,29 +487,31 @@ export function VacationPlanner({ currentUser, vacationId, onBack }: VacationPla
                               })}
                             </p>
                           </div>
-                          <div className="flex gap-2 pt-4 border-t">
-                            <Button
-                              onClick={() => {
-                                startEditActivity(activity, day.id)
-                                document
-                                  .querySelector('[role="dialog"]')
-                                  ?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))
-                              }}
-                            >
-                              Modifica
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              onClick={() => {
-                                document
-                                  .querySelector('[role="dialog"]')
-                                  ?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))
-                                setTimeout(() => deleteActivity(day.id, activity.id), 100)
-                              }}
-                            >
-                              Elimina
-                            </Button>
-                          </div>
+                          {permissions?.canEdit && (
+                            <div className="flex gap-2 pt-4 border-t">
+                              <Button
+                                onClick={() => {
+                                  startEditActivity(activity, day.id)
+                                  document
+                                    .querySelector('[role="dialog"]')
+                                    ?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))
+                                }}
+                              >
+                                Modifica
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                onClick={() => {
+                                  document
+                                    .querySelector('[role="dialog"]')
+                                    ?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))
+                                  setTimeout(() => deleteActivity(day.id, activity.id), 100)
+                                }}
+                              >
+                                Elimina
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       </DialogContent>
                     </Dialog>
@@ -503,10 +528,12 @@ export function VacationPlanner({ currentUser, vacationId, onBack }: VacationPla
               <Calendar className="w-12 h-12 mx-auto text-gray-400 mb-4" />
               <h3 className="text-lg font-semibold mb-2">Nessun giorno pianificato</h3>
               <p className="text-gray-600 mb-4">Inizia aggiungendo i giorni della tua vacanza</p>
-              <Button onClick={() => setIsAddingDay(true)}>
-                <Plus className="w-4 h-4 mr-2" />
-                Aggiungi Primo Giorno
-              </Button>
+              {permissions?.canAddContent && (
+                <Button onClick={() => setIsAddingDay(true)}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Aggiungi Primo Giorno
+                </Button>
+              )}
             </CardContent>
           </Card>
         )}
