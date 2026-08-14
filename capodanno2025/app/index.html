@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="it">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+        <title>Capodanno 2025</title>
+        <link rel="stylesheet" href="styles.css">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+    </head>
+    <body>
+        <!-- Hero Section -->
+        <div class="hero">
+            <video autoplay muted loop class="background-video">
+                <source src="videos/VID_2.mp4" type="video/mp4">
+                Il tuo browser non supporta i video HTML5.
+            </video>
+            <div class="hero-content">
+                <img src="images/logoA.png" alt="Logo Capodanno 2025" class="logo">
+                <!--<h1 class="animated-title">New Year's Eve in San Mauro d'Ampezzo</h1>-->
+            </div>
+        </div>
+        
+        <div id="popup" class="popup hidden">
+            <div class="popup-content">
+                <p>Le iscrizioni sono complete. Contattare un amministratore per ulteriori informazioni.</p>
+                <button id="close-popup" class="close-btn">Chiudi</button>
+            </div>
+        </div>
+        
+<!-- Overlay Descrizione -->
+<section class="overlay-description">
+    <div class="description-content">
+        <!--<h2>🎉✨ CAPODANNO 2025 ✨🎉</h2>-->
+        <h2>NEW YEAR'S EVE IN <s><em>CORTINA</em></s> SAN MAURO D'AMPEZZO</h2>
+        <p>
+            31 DICEMBRE 2024
+        </p>
+        <p>
+            Unisciti a noi per un'esperienza unica, dove eleganza e divertimento si incontrano in un'atmosfera che richiama il fascino delle Alpi più esclusive.
+        </p>
+        <p>
+            Il ritrovo sarà a <strong>San Mauro di Saline</strong>, in una stanza privata riscaldata.
+        </p>
+        <p>
+            Apriremo le porte dalle <strong>21:30</strong>, e saremo accompagnati con musica dal vivo del nostro DJ per tutta la serata. A disposizione ci saranno drink e stuzzichini per far emanare allegria ad ognuno. 🍹
+        </p>
+        <p>
+            Altre informazioni utili: <br>
+            - <strong>Open bar</strong>: Cocktail e bollicine all’altezza dell’occasione. 🍸<br>
+            - <strong>DJ Set</strong>: Musica che ti farà ballare sotto le stelle. 🎧<br>
+            - <strong>Parcheggio garantito</strong>: Nessun pensiero, solo relax. 🚗<br>
+            - <strong>Possibilità di pernottare</strong>: Porta sacco a pelo e materassino: il resto lo facciamo noi! 🛌<br>
+            - <strong>Dress code</strong>: Lasciati ispirare dal glamour delle vette. Porta il tuo stile elegante e sofisticato, come una notte di gala tra le luci di Cortina o Courmayeur. ✨</p>
+        <p class="pricing">
+            🎟 <strong>Costo:</strong> <br>
+            - <strong>20€</strong> entro il 25 dicembre (PayPal). <br>
+            - <strong>25€</strong> dal 26 dicembre fino alla sera dell’evento.
+        </p>
+        <p>
+            🌟 Vieni a scrivere con noi il primo capitolo di un nuovo anno indimenticabile! 🥂
+        </p>
+    </div>
+</section>
+
+        <!-- Countdown Section -->
+        <div class="countdown-container">
+            <h2>MANCANO</h2>
+            <div id="countdown">
+                <div class="time-box">
+                    <span id="days">0</span>
+                    <p>Giorni</p>
+                </div>
+                <div class="time-box">
+                    <span id="hours">0</span>
+                    <p>Ore</p>
+                </div>
+                <div class="time-box">
+                    <span id="minutes">0</span>
+                    <p>Minuti</p>
+                </div>
+                <div class="time-box">
+                    <span id="seconds">0</span>
+                    <p>Secondi</p>
+                </div>
+            </div>
+            <h3>Al grande appuntamento!</h3>
+        </div>
+
+       <!-- Event Section -->
+        <div id="event-section">
+            <div class="details">
+                <h2 id="event-title">NEW YEAR'S EVE</h2>
+                <p id="event-summary">
+                    I posti sono limitati! 
+                    Iscriviti subito per garantirti un posto in lista. Al raggiungimento della soglia massima, 
+                    le iscrizioni saranno chiuse.
+                </p>
+                <div class="event-buttons">
+                    <button class="event-btn" id="location-btn">
+                        <i class="fas fa-map-marker-alt"></i> Vedi il luogo
+                    </button>
+                    <button class="event-btn" id="register-btn">
+                        <i class="fas fa-ticket-alt"></i> Iscriviti ora
+                    </button>
+                    <button class="event-btn" id="details-btn">
+                        <i class="fas fa-info-circle"></i> Mostra dettagli
+                    </button>
+                </div>
+                <div class="expanded-details hidden" id="details-content">
+                    <p><strong>Data:</strong> 31 dicembre 2024</p>
+                    <p><strong>Orario:</strong> dalle 21.30 fino a tarda notte.</p>
+                    <!--<p><strong>Orario:</strong> Inizio alle 21:30 e si prosegue fino alle 02:00.</p>-->
+                    <p><strong>Luogo:</strong> <em>San Mauro di Saline</em>, Verona</p>
+                    <ul>
+                        <li>Musica live con DJ.</li>
+                        <li>Possibilità di pernottamento in loco.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="footer-content">
+                <div class="footer-logo">
+                    <img src="images/logo.png" alt="Logo Capodanno 2025">
+                </div>
+                <div class="footer-links">
+                    <a href="#countdown">Countdown</a>
+                    <a href="#event-section">Evento</a>
+                    <a href=https://capodanno2025.mrt3.it/privacy_policy.html>Privacy Policy</a>
+                </div>
+                <div class="footer-socials">
+                    <a href="https://facebook.com" target="_blank"><i class="fab fa-facebook-f"></i></a>
+                    <a href="https://instagram.com" target="_blank"><i class="fab fa-instagram"></i></a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 Capodanno 2025 | Tutti i diritti riservati</p>
+            </div>
+        </footer>
+        
+        <script src="script.js"></script>
+    </body>
+</html>

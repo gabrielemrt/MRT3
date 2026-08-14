@@ -1,0 +1,94 @@
+body {
+    margin: 0;
+    font-family: 'Montserrat', sans-serif;
+    background: #0b0b0f;
+    color: #fff;
+    overflow-x: hidden;
+}
+
+h1,
+h2,
+h3 {
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.hero {
+    height: 100vh;
+    background: url('../assets/img/hero.jpg') center/cover no-repeat;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+}
+
+.hero .overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+}
+
+.stroke {
+    text-decoration: line-through;
+    opacity: 0.5;
+}
+
+.cta-btn {
+    padding: 15px 30px;
+    color: #000;
+    background: #fff;
+    border-radius: 30px;
+    font-weight: bold;
+    margin-top: 20px;
+    display: inline-block;
+    text-decoration: none;
+    transition: 0.3s;
+}
+
+.cta-btn:hover {
+    letter-spacing: 3px;
+    background: #e0e0e0;
+}
+
+.section {
+    padding: 60px 20px;
+    max-width: 900px;
+    margin: auto;
+}
+
+.cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 25px;
+    padding: 50px;
+}
+
+.card {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 25px;
+    border-radius: 15px;
+    backdrop-filter: blur(8px);
+    transition: 0.3s;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+}
+
+.form-frame {
+    width: 100%;
+    min-height: 600px;
+    border-radius: 10px;
+}
+
+footer {
+    text-align: center;
+    padding: 40px 0;
+    opacity: 0.6;
+}
+
+.egg-hint {
+    font-size: 12px;
+    margin-top: -10px;
+}

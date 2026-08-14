@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  nye-cortina-web:
+    build: .
+    container_name: nye-cortina-2026
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+    networks:
+      - nye-network
+
+networks:
+  nye-network:
+    driver: bridge

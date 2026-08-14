@@ -1,0 +1,10 @@
+version: '3.8'
+
+services:
+  web:
+    image: nginx:alpine
+    ports:
+      - "8085:80"
+    volumes:
+      - ./app:/usr/share/nginx/html:ro
+    container_name: capodanno2025_web
