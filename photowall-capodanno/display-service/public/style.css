@@ -1,0 +1,226 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #000;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+}
+
+.photo-display {
+    width: 100%;
+    height: 100%;
+    display: none;
+    flex-direction: column;
+    justify-content: space-between;
+    background: #000;
+    position: relative;
+}
+
+.photo-display.active {
+    display: flex;
+}
+
+.watermark {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 30px;
+    padding: 25px 40px;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(10px);
+    z-index: 10;
+}
+
+.watermark-top {
+    border-bottom: 2px solid rgba(255, 255, 255, 0.15);
+}
+
+.watermark-bottom {
+    border-top: 2px solid rgba(255, 255, 255, 0.15);
+}
+
+.logo {
+    height: 70px;
+    width: auto;
+    object-fit: contain;
+}
+
+.event-name {
+    font-size: 1.8rem;
+    font-weight: 600;
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.photo-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    overflow: hidden;
+    background: #000;
+}
+
+.current-photo {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* Logo Screen */
+.logo-screen {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+}
+
+.logo-screen.hidden {
+    display: none;
+}
+
+.logo-content {
+    text-align: center;
+    color: white;
+    animation: pulse 3s ease-in-out infinite;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.03);
+    }
+}
+
+.main-logo {
+    width: 350px;
+    height: auto;
+    margin-bottom: 40px;
+    filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.5));
+}
+
+.logo-content h1 {
+    font-size: 3.5rem;
+    margin-bottom: 15px;
+    text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.5);
+    letter-spacing: 4px;
+    font-weight: 700;
+}
+
+.logo-content h2 {
+    font-size: 2rem;
+    margin-bottom: 60px;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+    letter-spacing: 3px;
+    font-weight: 400;
+    color: #e0e0e0;
+}
+
+.qr-section {
+    margin-top: 50px;
+}
+
+.qr-code {
+    width: 300px;
+    height: 300px;
+    background: white;
+    padding: 20px;
+    border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    margin: 0 auto 30px;
+    display: block;
+}
+
+.qr-section p {
+    font-size: 1.4rem;
+    opacity: 0.9;
+    letter-spacing: 1px;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+    .event-name {
+        font-size: 1.4rem;
+    }
+
+    .logo {
+        height: 55px;
+    }
+}
+
+@media (max-width: 768px) {
+    .event-name {
+        font-size: 1rem;
+        letter-spacing: 1px;
+    }
+
+    .logo {
+        height: 45px;
+    }
+
+    .watermark {
+        padding: 15px 20px;
+        gap: 15px;
+    }
+
+    .logo-content h1 {
+        font-size: 2.2rem;
+    }
+
+    .logo-content h2 {
+        font-size: 1.3rem;
+    }
+
+    .main-logo {
+        width: 220px;
+    }
+
+    .qr-code {
+        width: 250px;
+        height: 250px;
+    }
+}
+
+@media (orientation: portrait) and (max-width: 768px) {
+    .watermark {
+        padding: 12px 15px;
+        gap: 10px;
+    }
+
+    .event-name {
+        font-size: 0.75rem;
+    }
+
+    .logo {
+        height: 35px;
+    }
+}

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carica Foto - Cortina San Mauro NYE</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎊 New Year's Eve 🎉</h1>
+            <p>Condividi i tuoi momenti speciali!</p>
+        </div>
+
+        <div class="upload-zone" id="uploadZone">
+            <div class="upload-icon">📸</div>
+            <p class="upload-text">Tocca per scattare o scegliere foto</p>
+            <input type="file" id="fileInput" accept="image/*" multiple>
+        </div>
+
+        <div id="uploadQueue" class="upload-queue hidden">
+            <h3>Foto da caricare: <span id="queueCount">0</span></h3>
+            <div id="queueList" class="queue-list"></div>
+            <div class="queue-actions">
+                <button id="clearQueueBtn" class="btn btn-secondary">Annulla Tutto</button>
+                <button id="uploadAllBtn" class="btn btn-primary">Carica Tutto</button>
+            </div>
+        </div>
+
+        <div id="loading" class="loading hidden">
+            <div class="spinner"></div>
+            <p>Caricamento in corso...</p>
+            <p class="loading-sub"><span id="uploadProgress">0</span> di <span id="uploadTotal">0</span></p>
+        </div>
+
+        <div id="success" class="message success hidden">
+            <div class="message-icon">✅</div>
+            <p>Foto caricate con successo!</p>
+            <p class="message-sub">Appariranno presto sul maxischermo</p>
+        </div>
+
+        <div id="error" class="message error hidden">
+            <div class="message-icon">❌</div>
+            <p id="errorText">Errore nel caricamento</p>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>

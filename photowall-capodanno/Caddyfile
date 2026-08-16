@@ -1,0 +1,46 @@
+photos.tuodominio.it {
+    # Display service (pagina proiettore)
+    handle /display* {
+        reverse_proxy localhost:8091
+    }
+    
+    # WebSocket per real-time updates
+    handle /ws {
+        reverse_proxy localhost:8091
+    }
+    
+    # API endpoints
+    handle /api/* {
+        reverse_proxy localhost:8090
+    }
+    
+    # File uploads statici
+    handle /uploads/* {
+        reverse_proxy localhost:8090
+    }
+    
+    # Upload interface (pagina predefinita)
+    handle {
+        reverse_proxy localhost:8090
+    }
+    
+    # Headers di sicurezza
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+    
+    # Limiti upload
+    request_body {
+        max_size 20MB
+    }
+    
+    # Logs (opzionale)
+    log {
+        output file /var/log/caddy/photowall.log
+        level INFO
+    }
+}

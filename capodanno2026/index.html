@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NYE Cortina San Mauro 2026 - Season 2</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="snow" id="snow"></div>
+
+    <!-- Easter Eggs -->
+    <div class="hidden-star" id="star1" style="top: 15%; left: 10%;">⭐</div>
+    <div class="hidden-star" id="star2" style="top: 25%; right: 15%;">⭐</div>
+    <div class="hidden-star" id="star3" style="bottom: 30%; left: 20%;">⭐</div>
+
+    <div class="hero">
+        <div class="mountains"></div>
+        <h1 class="logo" id="mainLogo">CORTINA<br>SAN MAURO</h1>
+        <p class="subtitle">New Year's Eve - Season 2</p>
+        <p class="date">31 Dicembre 2025</p>
+
+        <div class="countdown">
+            <div class="countdown-item">
+                <span class="countdown-number" id="days">00</span>
+                <span class="countdown-label">Giorni</span>
+            </div>
+            <div class="countdown-item">
+                <span class="countdown-number" id="hours">00</span>
+                <span class="countdown-label">Ore</span>
+            </div>
+            <div class="countdown-item">
+                <span class="countdown-number" id="minutes">00</span>
+                <span class="countdown-label">Minuti</span>
+            </div>
+            <div class="countdown-item">
+                <span class="countdown-number" id="seconds">00</span>
+                <span class="countdown-label">Secondi</span>
+            </div>
+        </div>
+
+        <button class="cta-button" onclick="window.location.href='https://forms.gle/TeGzeXUS9j3yrkcGA'">
+            Registrati Ora
+        </button>
+    </div>
+
+    <section class="section">
+        <h2 class="section-title">Un'Esperienza Indimenticabile</h2>
+        <p class="description">
+            Unisciti a noi per un'esperienza unica, dove eleganza e divertimento si incontrano in un'atmosfera
+            che richiama il fascino delle Alpi più esclusive. Il ritrovo sarà a San Mauro di Saline,
+            in una stanza privata riscaldata.
+        </p>
+
+        <div class="features-grid">
+            <div class="feature-card">
+                <span class="feature-icon">🍸</span>
+                <h3 class="feature-title">Open Bar</h3>
+                <p class="feature-text">Cocktail e bollicine all'altezza dell'occasione. Apertura porte dalle 21:30.</p>
+            </div>
+
+            <div class="feature-card">
+                <span class="feature-icon">🎧</span>
+                <h3 class="feature-title">DJ Set Live</h3>
+                <p class="feature-text">Musica che ti farà ballare sotto le stelle per tutta la serata.</p>
+            </div>
+
+            <div class="feature-card">
+                <span class="feature-icon">🍹</span>
+                <h3 class="feature-title">Stuzzichini</h3>
+                <p class="feature-text">Delizie culinarie per accompagnare la tua serata di festa.</p>
+            </div>
+
+            <div class="feature-card">
+                <span class="feature-icon">🚗</span>
+                <h3 class="feature-title">Parcheggio</h3>
+                <p class="feature-text">Parcheggio garantito. Nessun pensiero, solo relax.</p>
+            </div>
+
+            <div class="feature-card">
+                <span class="feature-icon">🛌</span>
+                <h3 class="feature-title">Pernottamento</h3>
+                <p class="feature-text">Porta sacco a pelo e materassino: il resto lo facciamo noi!</p>
+            </div>
+
+            <div class="feature-card">
+                <span class="feature-icon">✨</span>
+                <h3 class="feature-title">Atmosfera Esclusiva</h3>
+                <p class="feature-text">Stanza privata riscaldata con vista sulle stelle alpine.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="section">
+        <div class="dress-code">
+            <h3 class="dress-code-title">✨ Dress Code</h3>
+            <p class="description">
+                Lasciati ispirare dal glamour delle vette. Porta il tuo stile elegante e sofisticato,
+                come una notte di gala tra le luci di Cortina o Courmayeur.
+                Pensa a un'eleganza alpina: raffinata, chic e con un tocco di magia invernale.
+            </p>
+        </div>
+
+        <div class="pricing">
+            <h2 class="section-title">🎟 Biglietti</h2>
+            <div class="price-item">
+                <span>Early Bird (entro 25 dicembre)</span>
+                <span class="price">25€</span>
+            </div>
+            <div class="price-item">
+                <span>Standard (dal 26 dicembre)</span>
+                <span class="price">30€</span>
+            </div>
+            <p style="text-align: center; margin-top: 2rem; color: #ffd700; font-size: 1.1rem;">
+                Pagamento tramite PayPal
+            </p>
+        </div>
+    </section>
+
+    <section class="section" id="registration">
+        <h2 class="section-title">Registrazione</h2>
+        <div class="form-container">
+            <p class="description" style="margin-bottom: 2rem;">
+                Compila il modulo Google per confermare la tua presenza all'evento più esclusivo dell'anno!
+            </p>
+            <button class="cta-button" onclick="window.open('https://forms.gle/TeGzeXUS9j3yrkcGA', '_blank')"
+                style="width: 100%;">
+                Apri Modulo di Registrazione
+            </button>
+        </div>
+    </section>
+
+    <!-- Modal per Easter Egg -->
+    <div class="modal" id="easterEggModal">
+        <div class="modal-content">
+            <h2>🎉 Congratulazioni!</h2>
+            <p id="modalText">Hai trovato una stella nascosta!</p>
+            <button class="close-modal" onclick="closeModal()">Chiudi</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
